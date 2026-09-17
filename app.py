@@ -706,97 +706,98 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         "🎒 طباعة تقرير فصل / شعبة محددة"
     ])
     
-    if print_type == "👤 طباعة تقرير طالب محدد":
-        st.markdown("#### 👤 طباعة وتصدير تقرير فردي لطالب:")
-        selected_student_name = st.selectbox("اختر اسم الطالب:", df_reports["name"].tolist())
-        st_info = df_reports[df_reports["name"] == selected_student_name].iloc[0]
+   elif print_type == "👤 طباعة تقرير طالب محدد":
+    st.markdown("#### 👤 طباعة وتصدير تقرير فردي لطالب:")
+    selected_student_name = st.selectbox("اختر اسم الطالب:", df_reports["name"].tolist())
+    st_info = df_reports[df_reports["name"] == selected_student_name].iloc
 
-        wa_indiv_url = create_whatsapp_url(st_info['phone'], msg)
-        st.markdown(f'''
-        <a href="{wa_indiv_url}" target="_blank" style="text-decoration:none;">
-            <div style="background-color:#25D366; color:white; padding:14px 20px; border-radius:8px; text-align:center; font-weight:bold; font-size:16px; margin-bottom:15px; display:block;">
-                💬 إرسال التقرير والرسالة فوراً إلى ولي الأمر عبر الواتساب (WhatsApp) -> {st_info['phone']}
-            </div>
-        </a>
-        ''', unsafe_allow_html=True)
+    # 1. استخراج درجة الطالب وحالة الغياب وتوليد نص الرسالة أولاً
+    sc = st_info["score"]
+    is_abs = st_info["is_absent"]
+    msg = generate_parent_message(st_info["name"], sc, is_abs)
 
-        
-        sc = st_info["score"]
-        is_abs = st_info["is_absent"]
-        msg = generate_parent_message(st_info["name"], sc, is_abs)
-        
-        if is_abs == 1:
-            badge_class = "badge-gray"
-            badge_text = "غائب ⚪"
-            score_display = "0% (غائب)"
-        elif sc is None or sc < 50:
-            badge_class = "badge-red"
-            badge_text = "أقل من 50% (يحتاج متابعة) 🔴"
-            score_display = f"{sc}%"
-        elif sc <= 75:
-            badge_class = "badge-blue"
-            badge_text = "50% - 75% (مستوى متوسط) 🔵"
-            score_display = f"{sc}%"
-        else:
-            badge_class = "badge-green"
-            badge_text = "76% - 100% (ممتاز ومتفوق) 🟢"
-            score_display = f"{sc}%"
+    # 2. إنشاء رابط الواتساب بعد تعريف المتغير msg
+    wa_indiv_url = create_whatsapp_url(st_info['phone'], msg)
+    st.markdown(f'''
+    <a href="{wa_indiv_url}" target="_blank" style="text-decoration:none;">
+        <div style="background-color:#25D366; color:white; padding:14px 20px; border-radius:8px; text-align:center; font-weight:bold; font-size:16px; margin-bottom:15px; display:block;">
+            💬 إرسال التقرير والرسالة فوراً إلى ولي الأمر عبر الواتساب (WhatsApp) -> {st_info['phone']}
+        </div>
+    </a>
+    ''', unsafe_allow_html=True)
 
-        student_report_html = f"""
-        <table class="header-table">
+    if is_abs == 1:
+        badge_class = "badge-gray"
+        badge_text = "غائب ⚪"
+        score_display = "0% (غائب)"
+    elif sc is None or sc < 50:
+        badge_class = "badge-red"
+        badge_text = "أقل من 50% (يحتاج متابعة) 🔴"
+        score_display = f"{sc}%"
+    elif sc <= 75:
+        badge_class = "badge-blue"
+        badge_text = "50% - 75% (مستوى متوسط) 🔵"
+        score_display = f"{sc}%"
+    else:
+        badge_class = "badge-green"
+        badge_text = "76% - 100% (ممتاز ومتفوق) 🟢"
+        score_display = f"{sc}%"
+
+    student_report_html = f"""
+    <table class="header-table">
+        <tr>
+            <td style="text-align: right; width: 35%;">
+                <b>المملكة العربية السعودية</b><br>
+                <b>وزارة التعليم</b><br>
+                <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
+                <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
+            </td>
+            <td style="text-align: center; width: 30%;">
+                <h3 style="margin: 0; color: #1e3c72;">تقرير ولي الأمر لدرجات الإتقان</h3>
+                <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
+            </td>
+            <td style="text-align: left; width: 35%;">
+                <b>التاريخ:</b> 1447/1448 هـ<br>
+                <b>رقم السجل:</b> {st_info['id']}
+            </td>
+        </tr>
+    </table>
+
+    <div style="background: #fdfdfd; border: 1px solid #1e3c72; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <table style="width: 100%; border-collapse: collapse;">
             <tr>
-                <td style="text-align: right; width: 35%;">
-                    <b>المملكة العربية السعودية</b><br>
-                    <b>وزارة التعليم</b><br>
-                    <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
-                    <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
-                </td>
-                <td style="text-align: center; width: 30%;">
-                    <h3 style="margin: 0; color: #1e3c72;">تقرير ولي الأمر لدرجات الإتقان</h3>
-                    <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
-                </td>
-                <td style="text-align: left; width: 35%;">
-                    <b>التاريخ:</b> 1447/1448 هـ<br>
-                    <b>رقم السجل:</b> {st_info['id']}
-                </td>
+                <td style="padding: 8px;"><b>اسم الطالب:</b> {st_info['name']}</td>
+                <td style="padding: 8px;"><b>رقم الهوية:</b> {st_info['id']}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><b>الصف الدراسي:</b> {st_info['grade']}</td>
+                <td style="padding: 8px;"><b>الفصل / الشعبة:</b> ({st_info['class']})</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><b>نسبة الإتقان الأسبوعية:</b> {score_display}</td>
+                <td style="padding: 8px;"><b>مستوى الطالب:</b> <span class="{badge_class}">{badge_text}</span></td>
             </tr>
         </table>
+    </div>
 
-        <div style="background: #fdfdfd; border: 1px solid #1e3c72; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                    <td style="padding: 8px;"><b>اسم الطالب:</b> {st_info['name']}</td>
-                    <td style="padding: 8px;"><b>رقم الهوية:</b> {st_info['id']}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px;"><b>الصف الدراسي:</b> {st_info['grade']}</td>
-                    <td style="padding: 8px;"><b>الفصل / الشعبة:</b> ({st_info['class']})</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px;"><b>نسبة الإتقان الأسبوعية:</b> {score_display}</td>
-                    <td style="padding: 8px;"><b>مستوى الطالب:</b> <span class="{badge_class}">{badge_text}</span></td>
-                </tr>
-            </table>
-        </div>
+    <div style="background: #eef2f5; border-right: 5px solid #1e3c72; padding: 15px; border-radius: 4px; margin-bottom: 25px;">
+        <h4 style="margin-top: 0; color: #1e3c72;">💬 الرسالة الموجهة لولي الأمر:</h4>
+        <p style="font-size: 15px; line-height: 1.6; margin: 0;">{msg}</p>
+    </div>
 
-        <div style="background: #eef2f5; border-right: 5px solid #1e3c72; padding: 15px; border-radius: 4px; margin-bottom: 25px;">
-            <h4 style="margin-top: 0; color: #1e3c72;">💬 الرسالة الموجهة لولي الأمر:</h4>
-            <p style="font-size: 15px; line-height: 1.6; margin: 0;">{msg}</p>
-        </div>
-
-        <table class="signatures">
-            <tr>
-                <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
-                <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
-                <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
-            </tr>
-        </table>
-        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
-            تصميم وتطوير: <b>محمد سامي السعيد</b>
-        </div>
-        """
-        
-        render_printable_html_view(student_report_html, title=f"تقرير_{st_info['name']}")
+    <table class="signatures">
+        <tr>
+            <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
+            <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
+            <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
+        </tr>
+    </table>
+    <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
+        تصميم وتطوير: <b>محمد سامي السعيد</b>
+    </div>
+    """
+    
+    render_printable_html_view(student_report_html, title=f"تقرير_{st_info['name']}")
 
     elif print_type == "🏫 طباعة تقرير صف بالكامل (جميع الفصول)":
         st.markdown("#### 🏫 طباعة وتصدير تقرير صف دراسي كامل:")
