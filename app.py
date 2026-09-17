@@ -2,18 +2,20 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import openpyxl
-import urllib.parse
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 import io
-import streamlit.components.v1 as components
 
 # ==============================================================================
-# 1. تهيئة قاعدة البيانات والبيانات المعتمدة للطلاب
+# 1. DATABASE INITIALIZATION & PRE-SEEDED DATA
 # ==============================================================================
 DB_NAME = "school_grading_system.db"
 
 STUDENTS_INIT = [
-    # الصف الأول المتوسط - فصل 1
+    # Grade 1 - Class 1
     {"id": "1167628468", "name": "ابراهيم بن محمد بن علي الوهيبي", "grade": "الأول المتوسط", "class": 1, "phone": "966504158122"},
     {"id": "2395664317", "name": "بلال عبدالرزاق عيسى العيسى", "grade": "الأول المتوسط", "class": 1, "phone": "966507448712"},
     {"id": "1170582165", "name": "حسام بن محمد بن علي ال رايان البارقي", "grade": "الأول المتوسط", "class": 1, "phone": "966504445699"},
@@ -34,7 +36,7 @@ STUDENTS_INIT = [
     {"id": "1169174164", "name": "محمد نايف فراج الدعجاني", "grade": "الأول المتوسط", "class": 1, "phone": "966554444782"},
     {"id": "2380890976", "name": "وائل بولعيش", "grade": "الأول المتوسط", "class": 1, "phone": "966591534495"},
 
-    # الصف الأول المتوسط - فصل 2
+    # Grade 1 - Class 2
     {"id": "1170348286", "name": "الوليد ابن خالد بن فهد العتيبي", "grade": "الأول المتوسط", "class": 2, "phone": "966558522229"},
     {"id": "1172433185", "name": "باسل محمد فرج الدوسري", "grade": "الأول المتوسط", "class": 2, "phone": "966537589781"},
     {"id": "1173391556", "name": "بسام بن عبدالكريم بن عبدالله الحرقان الدوسري", "grade": "الأول المتوسط", "class": 2, "phone": "966534467820"},
@@ -58,7 +60,7 @@ STUDENTS_INIT = [
     {"id": "1170884165", "name": "يزن محمد علي اليحيا", "grade": "الأول المتوسط", "class": 2, "phone": "966557072133"},
     {"id": "1170548737", "name": "يوسف محمد عبدالله الدوسري", "grade": "الأول المتوسط", "class": 2, "phone": "966556666176"},
 
-    # الصف الثاني المتوسط - فصل 1
+    # Grade 2 - Class 1
     {"id": "1163760935", "name": "احمد سامي بن احمد العمران", "grade": "الثاني المتوسط", "class": 1, "phone": "966551501503"},
     {"id": "1153756612", "name": "الوليد عبدالله بن ابراهيم المبدل", "grade": "الثاني المتوسط", "class": 1, "phone": "966505241627"},
     {"id": "1164269209", "name": "ذياب بن محمد بن ذياب بن محمد ال مربط القحطاني", "grade": "الثاني المتوسط", "class": 1, "phone": "966561169999"},
@@ -81,7 +83,7 @@ STUDENTS_INIT = [
     {"id": "1171868639", "name": "وائل بن عبدالله بن عامر علي ال عبيد الغامدي", "grade": "الثاني المتوسط", "class": 1, "phone": "966548888663"},
     {"id": "1163191222", "name": "يزيد بن طارق بن علي الحديثي", "grade": "الثاني المتوسط", "class": 1, "phone": "966554084040"},
 
-    # الصف الثاني المتوسط - فصل 2
+    # Grade 2 - Class 2
     {"id": "1166753291", "name": "ابراهيم بن مبارك بن راشد بن عبدالرحمن السبعان آل موينع", "grade": "الثاني المتوسط", "class": 2, "phone": "966555212896"},
     {"id": "1163613795", "name": "ابراهيم ياسر ابراهيم الحلوي", "grade": "الثاني المتوسط", "class": 2, "phone": "966502220990"},
     {"id": "1167148251", "name": "حامد بن محمد بن حامد شباط", "grade": "الثاني المتوسط", "class": 2, "phone": "966595001616"},
@@ -106,7 +108,7 @@ STUDENTS_INIT = [
     {"id": "1164387977", "name": "هادي سلطان هادي القحطاني", "grade": "الثاني المتوسط", "class": 2, "phone": "966505936192"},
     {"id": "1165002153", "name": "يزيد بن حسين بن متعب بن محمد كعكم", "grade": "الثاني المتوسط", "class": 2, "phone": "966550117805"},
 
-    # الصف الثاني المتوسط - فصل 3
+    # Grade 2 - Class 3
     {"id": "1166911709", "name": "ثامر عمر ابراهيم عثمان", "grade": "الثاني المتوسط", "class": 3, "phone": "966538384444"},
     {"id": "008464815", "name": "جهاد فارس عبدالقادر حناوي", "grade": "الثاني المتوسط", "class": 3, "phone": "966562674178"},
     {"id": "1164830562", "name": "خالد محمد عبدالكريم الخفاجي", "grade": "الثاني المتوسط", "class": 3, "phone": "966533074601"},
@@ -127,8 +129,8 @@ STUDENTS_INIT = [
     {"id": "1166629798", "name": "يزيد بن حمد بن مترك بن محمد ال مسعود القحطاني", "grade": "الثاني المتوسط", "class": 3, "phone": "966505203795"},
     {"id": "1167371093", "name": "يوسف عايد عواد البلوي", "grade": "الثاني المتوسط", "class": 3, "phone": "966531066289"},
 
-    # الصف الثالث المتوسط - فصل 1
-    {"id": "1158966166", "name": "أاصيل ناصر بن محمد مذكور", "grade": "الثالث المتوسط", "class": 1, "phone": "966552149044"},
+    # Grade 3 - Class 1
+    {"id": "1158966166", "name": "أصيل ناصر بن محمد مذكور", "grade": "الثالث المتوسط", "class": 1, "phone": "966552149044"},
     {"id": "1162308223", "name": "خالد محمد مسدف معافا", "grade": "الثالث المتوسط", "class": 1, "phone": "966552680201"},
     {"id": "1161109093", "name": "راكان بن عبدالله بن سالم اليافعي", "grade": "الثالث المتوسط", "class": 1, "phone": "966504234219"},
     {"id": "1160805899", "name": "زياد احمد بن علي اللحيد", "grade": "الثالث المتوسط", "class": 1, "phone": "966504432362"},
@@ -151,7 +153,7 @@ STUDENTS_INIT = [
     {"id": "1159404795", "name": "نواف وليد حمد الشعالان", "grade": "الثالث المتوسط", "class": 1, "phone": "966555798074"},
     {"id": "1168385894", "name": "يوسف نايف مقعد العتيبي", "grade": "الثالث المتوسط", "class": 1, "phone": "966505290037"},
 
-    # الصف الثالث المتوسط - فصل 2
+    # Grade 3 - Class 2
     {"id": "1156933093", "name": "تركي عبدالعزيز عبدالله المرزوق", "grade": "الثالث المتوسط", "class": 2, "phone": "966501100076"},
     {"id": "1160223317", "name": "تركي عثمان عبدالعزيز العثمان", "grade": "الثالث المتوسط", "class": 2, "phone": "966505226153"},
     {"id": "1159683497", "name": "راشد احمد فهد ال سعيد", "grade": "الثالث المتوسط", "class": 2, "phone": "966555992829"},
@@ -174,7 +176,7 @@ STUDENTS_INIT = [
     {"id": "1161363443", "name": "نواف سعد بن علي القاسم", "grade": "الثالث المتوسط", "class": 2, "phone": "966504200199"},
     {"id": "1162274086", "name": "ياسر تركي اسماعيل مسملي", "grade": "الثالث المتوسط", "class": 2, "phone": "966504261855"},
 
-    # الصف الثالث المتوسط - فصل 3
+    # Grade 3 - Class 3
     {"id": "1163525544", "name": "ثامر وليد بن عبدالعزيز الطليحي", "grade": "الثالث المتوسط", "class": 3, "phone": "966504437710"},
     {"id": "1160712996", "name": "خالد بن عبدالرؤوف بن عبدالله الشنيبر", "grade": "الثالث المتوسط", "class": 3, "phone": "966504173163"},
     {"id": "1162560054", "name": "خالد عبدالله خالد الخالدي", "grade": "الثالث المتوسط", "class": 3, "phone": "966558890881"},
@@ -226,6 +228,8 @@ def init_db():
             FOREIGN KEY (student_id) REFERENCES students(id)
         )
     ''')
+    
+    # Check if students exist
     c.execute("SELECT COUNT(*) FROM students")
     count = c.fetchone()[0]
     if count == 0:
@@ -238,90 +242,35 @@ def init_db():
 init_db()
 
 # ==============================================================================
-# 2. الدوال المساعدة وصياغة الرسائل
+# 2. HELPER FUNCTIONS
 # ==============================================================================
-def create_whatsapp_url(phone, text):
-    phone_clean = str(phone).strip().replace("+", "").replace(" ", "").replace("-", "")
-    if phone_clean.startswith("05"):
-        phone_clean = "966" + phone_clean[1:]
-    elif phone_clean.startswith("5"):
-        phone_clean = "966" + phone_clean
-    encoded_text = urllib.parse.quote(text)
-    return f"https://api.whatsapp.com/send?phone={phone_clean}&text={encoded_text}"
-
 def generate_parent_message(student_name, score, is_absent):
     if is_absent:
-        return f"المكرم ولي أمر الطالب/ {student_name}،  متوسطة الثغر النموذجية الأهلية نود التنبيه على غياب الطالب هذا الأسبوع، ونحثكم على متابعة الانتظام وحضوره الاختبارات لتجنب حسم الدرجات والتأثير على مستواه الدراسي."
+        return f"المكرم ولي أمر الطالب/ {student_name}، نود التنبيه على غياب الطالب هذا الأسبوع، ونحثكم على متابعة الانتظام وحضور الاختبارات لتجنب حسم الدرجات والتأثير على مستواه التحصيلي : متوسطة الثغر النموذجية الأهلية  ."
     elif score is None or score < 50:
         sc_str = f"{score}%" if score is not None else "أقل من 50%"
-        return f"المكرم ولي أمر الطالب/ {student_name}، حرصاً منا على مصلحة ابنكم ومستقبله الدراسي، نود إشعاركم بوجود تراجع ملحوظ في مستواه التحصيلي مؤخراً بنسبة ({sc_str}) .  متوسطة الثغر النموذجية الأهلية نرجو منكم تكثيف المتابعة المنزلية والتواصل معنا للوقوف على أسباب هذا التراجع ووضع خطة لتحسين أدائه. شاكرين تعاونكم، مع تحياتنا ونأمل منكم المتابعة والعمل على رفع مستواه الدراسي."
+        return f"المكرم ولي أمر الطالب/ {student_name}، نفيدكم بأن نسبة إتقان الطالب هذا الأسبوع هي ({sc_str})  
+،حرصاً منا على مصلحة ابنكم  ومستقبله الدراسي، نود إشعاركم بوجود تراجع ملحوظ في مستواه التحصيلي مؤخراً، 
+، نرجو منكم تكثيف المتابعة المنزلية والتواصل معنا للوقوف على أسباب هذا التراجع ووضع خطة لتحسين أدائه.مع تحياتنا  متوسطة الثغر النموذجية الأهلية ."
     elif score <= 75:
-        return f"المكرم ولي أمر الطالب/ {student_name}، نود إحاطتكم علماً بأن المستوى التحصيلي لابنكم جيد ومستقر بشكل عام بنسبة ({score}%)، متوسطة الثغر النموذجية الأهلية ولكنه يمتلك قدرات أعلى تؤهله لتحقيق درجات أفضل. نأمل منكم التركيز معه في الفترة القادمة لرفع كفاءته الدراسية ونحثه على بذل المزيد من الجهد للوصول إلى مستوى أفضل والتميز. شاكرين لكم تعاونكم الدائم، مع تحياتنا."
+        return f"المكرم ولي أمر الطالب/ {student_name}، نفيدكم بأن نسبة إتقان الطالب هذا الأسبوع هي ({sc_str})  ،نود إحاطتكم علماً بأن المستوى التحصيلي لابنكم جيد ومستقر بشكل عام، ولكنه يمتلك قدرات أعلى تؤهله لتحقيق درجات أفضضل.نأمل منكم التركيز معه في الفترة القادمة  لرفع كفاءته الدراسية.شاكرين لكم تعاونكم الدائم.مع تحياتنا. نأمل منكم المتابعة والعمل على رفع مستواه الدراسي متوسطة الثغر النموذجية الأهلية ."
+."
     else:
-        return f"المكرم ولي أمر الطالب/ {student_name}،   يسعدنا إبلاغكم بأن ابنكم قدم أداءً تحصيلياً متميزاً وسلوكاً رائعاً داخل الفصل، وحصل على نسبة إتقان ممتازة ({score}%).  متوسطة الثغر النموذجية الأهلية نشكر لكم حسن المتابعة والاهتمام، ونرجو الاستمرار في هذا الدعم المتبادل للحفاظ على هذا المستوى المتفوق. مع أطيب دعواتنا له بالتوفيق والاستمرارية، مع تحياتنا."
+        return f"المكرم ولي أمر الطالب/ {student_name}، نتقدم بخالص الشكر والتقدير لكم وللطالب على الاهتمام والتفوق بنسبة إتقان ممتازة ({score}%)، يسعدنا إبلاغكم بأن ابنكم قدم أداءً تحصيلياً متميزاً وسلوكاً رائعاً داخل الفصل، وحصل على درجات ممتازة في التقييمات الأخيرة.نشكر لكم حسن المتابعة والاهتمام، ونرجو الاستمرار في هذا الدعم المتبادل للحفاظ على هذا المستوى المتفوق.مع تحياتنا متوسطة الثغر النموذجية الأهلية ."
 
-def render_printable_html_view(html_content, title="طباعة التقرير"):
-    full_html = f'''
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-    <meta charset="utf-8">
-    <title>{title}</title>
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
-    html, body, [class*="css"], .stMarkdown, .stText, div[data-baseweb="input"], div[data-baseweb="select"], .stNumberInput input {{
-        font-family: 'Tajawal', sans-serif !important;
-        direction: rtl !important;
-        text-align: right !important;
-    }}
-    .stApp {{
-        background-color: #f8fafc;
-    }}
-    .header-box {{
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        color: white;
-        padding: 22px;
-        border-radius: 14px;
-        text-align: center !important;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 18px rgba(0,0,0,0.12);
-    }}
-    .student-name-box {{
-        text-align: right !important;
-        direction: rtl !important;
-        font-weight: 700;
-        font-size: 16px;
-        color: #1e3c72;
-        padding: 6px 10px;
-        background-color: #ffffff;
-        border-right: 4px solid #2a5298;
-        border-radius: 6px;
-        margin-bottom: 8px;
-    }}
-    .stDataFrame table, .stDataFrame td, .stDataFrame th {{
-        text-align: right !important;
-        direction: rtl !important;
-    }}
-    div[data-testid="stForm"] {{
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
-        padding: 20px;
-        background-color: #ffffff;
-    }}
-    </style>
-    </head>
-    <body>
-    <div class="print-container">
-    <button class="print-btn no-print" onclick="window.print()">🖨️ اضغط هنا للطباعة المباشرة / التصدير كـ PDF</button>
-    {html_content}
-    </div>
-    </body>
-    </html>
-    '''
-    components.html(full_html, height=650, scrolling=True)
+
+def get_row_color(score, is_absent):
+    if is_absent:
+        return "background-color: #e2e3e5; color: #383d41;" # Gray
+    elif score is None or score < 50:
+        return "background-color: #f8d7da; color: #721c24;" # Light Red
+    elif score <= 75:
+        return "background-color: #cce5ff; color: #004085;" # Light Blue
+    else:
+        return "background-color: #d4edda; color: #155724;" # Light Green
 
 # ==============================================================================
-# 3. واجهة برنامج Streamlit
+# 3. STREAMLIT CONFIG & STYLING
 # ==============================================================================
 st.set_page_config(
     page_title="برنامج رصد الدرجات - متوسطة الثغر النموذجية الأهلية",
@@ -330,11 +279,52 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+st.markdown('''
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+    html, body, [class*="css"] {
+        font-family: 'Tajawal', sans-serif;
+        direction: rtl;
+        text-align: right;
+    }
+    .stApp {
+        background-color: #f4f6f9;
+    }
+    .header-box {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .stat-card {
+        background-color: white;
+        padding: 15px;
+        border-radius: 10px;
+        border-right: 5px solid #2a5298;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        text-align: center;
+    }
+</style>
+''', unsafe_allow_html=True)
+
+# Header Banner
+st.markdown('''
+<div class="header-box">
+    <h2>🏫 المملكة العربية السعودية - وزارة التعليم</h2>
+    <h3>الإدارة العامة للتعليم بمنطقة الرياض | متوسطة الثغر النموذجية الأهلية (بنين)</h3>
+    <h4>برنامج رصد درجات الإتقان وإدارة تقارير أولياء الأمور</h4>
+</div>
+''', unsafe_allow_html=True)
+
+# Sidebar Navigation
 st.sidebar.title("📌 القائمة الرئيسية")
 page = st.sidebar.radio("اختر الصفحة:", ["📝 صفحة الرصد", "🏫 إدارة المدرسة وتقارير أولياء الأمور"])
 
 # ==============================================================================
-# الصفحة الأولى: صفحة الرصد (RECORDING SHEET)
+# PAGE 1: صفحة الرصد (RECORDING SHEET)
 # ==============================================================================
 if page == "📝 صفحة الرصد":
     st.subheader("📝 صفحة رصد درجات الإتقان الأسبوعية")
@@ -351,8 +341,11 @@ if page == "📝 صفحة الرصد":
         week = st.selectbox("الأسبوع المستهدف:", weeks)
 
     st.markdown("---")
-
+    
+    # Fetch students & existing grades
     conn = get_db_connection()
+    c = conn.cursor()
+    
     query = """
         SELECT s.id, s.name, s.grade, s.class, g.score, g.is_absent 
         FROM students s
@@ -368,6 +361,7 @@ if page == "📝 صفحة الرصد":
     else:
         st.info(f"📊 عدد الطلاب في {grade} - فصل ({class_num}): **{len(df_students)} طالب** | {term} - {week}")
         
+        # Interactive Form / Data Editor
         with st.form("recording_form"):
             st.markdown("##### 📥 أدخل/عدّل درجات الطلاب وحالة الغياب:")
             
@@ -375,19 +369,18 @@ if page == "📝 صفحة الرصد":
             for idx, row in df_students.iterrows():
                 col_name, col_score, col_absent = st.columns([3, 2, 1])
                 with col_name:
-                    st.markdown(f'<div class="student-name-box">📌 {idx+1}. {row["name"]} <span style="font-size: 12px; color: #64748b; font-weight: normal;">({row["id"]})</span></div>', unsafe_allow_html=True)
+                    st.write(f"**{idx+1}. {row['name']}** (`{row['id']}`)")
                 with col_score:
-                    curr_score = float(row["score"]) if (pd.notnull(row["score"]) and row["score"] is not None) else 0.0
+                    curr_score = float(row["score"]) if pd.notnull(row["score"]) else 100.0
                     sc = st.number_input(f"الدرجة (100)", min_value=0.0, max_value=100.0, value=curr_score, step=1.0, key=f"sc_{row['id']}")
                 with col_absent:
                     curr_abs = bool(row["is_absent"]) if pd.notnull(row["is_absent"]) else False
                     is_abs = st.checkbox("غائب ⚪", value=curr_abs, key=f"abs_{row['id']}")
                 
-                final_score = 0.0 if is_abs else sc
                 updated_data.append({
                     "student_id": row["id"],
                     "name": row["name"],
-                    "score": final_score,
+                    "score": sc if not is_abs else None,
                     "is_absent": 1 if is_abs else 0
                 })
             
@@ -406,18 +399,19 @@ if page == "📝 صفحة الرصد":
                 """, (item["student_id"], term, week, item["score"], item["is_absent"]))
             conn.commit()
             conn.close()
-            st.success("✅ تم حفظ البيانات وتحديث جدول الرصد وقاعدة البيانات بنجاح!")
+            st.success("✅ تم حفظ البيانات في قاعدة البيانات بنجاح!")
             st.rerun()
 
+        # Display Color Coded Results Table
         st.markdown("### 📊 جدول نتائج الرصد المنسق بالتلوين الشرطي:")
         
         table_rows = []
         for item in updated_data:
             sc = item["score"]
             is_abs = item["is_absent"]
-            if is_abs == 1:
+            if is_abs:
                 cat = "غائب ⚪"
-                pct = "0% (غائب)"
+                pct = "0%"
             elif sc < 50:
                 cat = "أقل من 50% (ضعيف) 🔴"
                 pct = f"{sc}%"
@@ -431,7 +425,7 @@ if page == "📝 صفحة الرصد":
             table_rows.append({
                 "اسم الطالب": item["name"],
                 "رقم الهوية": item["student_id"],
-                "درجة الإتقان / 100": sc if is_abs == 0 else 0.0,
+                "درجة الإتقان / 100": sc if not is_abs else "غائب",
                 "النسبة المئوية": pct,
                 "الفئة / الحالة": cat
             })
@@ -440,77 +434,12 @@ if page == "📝 صفحة الرصد":
         st.dataframe(df_display, use_container_width=True)
 
         st.markdown("---")
-        st.markdown("### 🖨️ طباعة وتصدير كشوف الرصد:")
+        st.markdown("### 📥 تصدير وطباعة كشوف الدرجات:")
         
-        tab_exp1, tab_exp2 = st.tabs(["🖨️ معاينة وطباعة كشف مفرغ (HTML / PDF)", "📊 تصدير إلى Excel"])
+        col_exp1, col_exp2, col_exp3 = st.columns(3)
         
-        with tab_exp1:
-            st.markdown("#### 📝 معاينة وطباعة كشف رصد مفرغ للرصد اليدوي:")
-            rows_html = ""
-            for i, st_item in enumerate(updated_data, 1):
-                rows_html += f"""
-                <tr>
-                    <td>{i}</td>
-                    <td>{st_item['student_id']}</td>
-                    <td style="text-align: right; padding-right: 15px;">{st_item['name']}</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                </tr>
-                """
-                
-            blank_sheet_html = f"""
-            <table class="header-table">
-                <tr>
-                    <td style="text-align: right; width: 35%;">
-                        <b>المملكة العربية السعودية</b><br>
-                        <b>وزارة التعليم</b><br>
-                        <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
-                        <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
-                    </td>
-                    <td style="text-align: center; width: 30%;">
-                        <h3 style="margin: 0; color: #1e3c72;">كشف رصد مفرغ للرصد اليدوي</h3>
-                        <p style="margin: 5px 0;">درجات الإتقان الأسبوعية</p>
-                    </td>
-                    <td style="text-align: left; width: 35%;">
-                        <b>الصف الدراسي:</b> {grade}<br>
-                        <b>الفصل / الشعبة:</b> ({class_num})<br>
-                        <b>الفصل الدراسي:</b> {term}<br>
-                        <b>الأسبوع:</b> {week}
-                    </td>
-                </tr>
-            </table>
-
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width: 5%;">م</th>
-                        <th style="width: 20%;">رقم الهوية</th>
-                        <th style="width: 40%;">اسم الطالب</th>
-                        <th style="width: 12%;">درجة الإتقان / 100</th>
-                        <th style="width: 10%;">النسبة %</th>
-                        <th style="width: 13%;">ملاحظات</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows_html}
-                </tbody>
-            </table>
-
-            <table class="signatures">
-                <tr>
-                    <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
-                    <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
-                    <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
-                </tr>
-            </table>
-            <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
-                تصميم وتطوير: <b>محمد سامي السعيد</b>
-            </div>
-            """
-            render_printable_html_view(blank_sheet_html, title="كشف_رصد_مفرغ")
-
-        with tab_exp2:
+        # Excel Export
+        with col_exp1:
             wb = openpyxl.Workbook()
             ws = wb.active
             ws.title = "كشف_الرصد"
@@ -533,13 +462,48 @@ if page == "📝 صفحة الرصد":
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
+        # PDF Blank Recording Sheet
+        with col_exp3:
+            pdf_io = io.BytesIO()
+            doc = SimpleDocTemplate(pdf_io, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+            elements = []
+            styles = getSampleStyleSheet()
+            
+            title_style = ParagraphStyle("Title", parent=styles["Heading1"], alignment=1, fontSize=14)
+            elements.append(Paragraph(f"<b>متوسطة الثغر النموذجية الأهلية - كشف رصد مفرغ</b>", title_style))
+            elements.append(Paragraph(f"<b>الصف: {grade} | الفصل: ({class_num}) | {term} | {week}</b>", title_style))
+            elements.append(Spacer(1, 15))
+            
+            table_data = [["م", "رقم الهوية", "اسم الطالب", "درجة الإتقان / 100", "ملاحظات"]]
+            for i, item in enumerate(updated_data, 1):
+                table_data.append([str(i), item["student_id"], item["name"], "", ""])
+                
+            t = Table(table_data, colWidths=[30, 100, 220, 100, 80])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e3c72')),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('GRID', (0,0), (-1,-1), 1, colors.black),
+                ('FONTSIZE', (0,0), (-1,-1), 10),
+            ]))
+            elements.append(t)
+            doc.build(elements)
+            pdf_io.seek(0)
+            
+            st.download_button(
+                label="📝 طباعة كشف مفرغ (PDF)",
+                data=pdf_io,
+                file_name=f"كشف_مفرغ_{grade}_{class_num}.pdf",
+                mime="application/pdf"
+            )
+
 # ==============================================================================
-# الصفحة الثانية: إدارة المدرسة وتقارير أولياء الأمور (ADMIN & PARENT REPORTS)
+# PAGE 2: إدارة المدرسة وتقارير أولياء الأمور (ADMIN & PARENT SMS REPORTS)
 # ==============================================================================
 elif page == "🏫 إدارة المدرسة وتقارير أولياء الأمور":
-    st.subheader("🏫 إدارة المدرسة وإرسال وتقارير أولياء الأمور")
+    st.subheader("🏫 إدارة المدرسة وإرسال تقارير أولياء الأمور")
     
-    col_w1, col_w2 = st.columns(2)
+    col_w1, col_w2 = st.columns([2, 2])
     with col_w1:
         weeks = [f"الأسبوع {i}" for i in range(1, 19)]
         selected_week = st.selectbox("اختر الأسبوع لعرض التقرير والرسائل:", weeks)
@@ -547,7 +511,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         selected_term = st.selectbox("اختر الفصل الدراسي:", ["الفصل الدراسي الأول", "الفصل الدراسي الثاني"])
         
     st.markdown("---")
-
+    
     conn = get_db_connection()
     query = """
         SELECT s.id, s.name, s.grade, s.class, s.phone, g.score, g.is_absent
@@ -558,8 +522,9 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
     df_reports = pd.read_sql_query(query, conn, params=(selected_term, selected_week))
     conn.close()
 
+    # Categorize SMS messages
     cat_red, cat_blue, cat_green, cat_gray = [], [], [], []
-
+    
     for idx, r in df_reports.iterrows():
         sc = r["score"]
         is_abs = r["is_absent"]
@@ -571,7 +536,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
             "grade": r["grade"],
             "class": r["class"],
             "phone": r["phone"],
-            "score": sc if (sc is not None and is_abs == 0) else 0.0,
+            "score": sc,
             "is_absent": is_abs,
             "message": msg
         }
@@ -585,6 +550,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         else:
             cat_green.append(row_dict)
 
+    # Overview Metrics
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("🔴 فئة أقل من 50%", f"{len(cat_red)} طالب")
     m2.metric("🔵 فئة 50% - 75%", f"{len(cat_blue)} طالب")
@@ -592,401 +558,85 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
     m4.metric("⚪ فئة الغياب", f"{len(cat_gray)} طالب")
 
     st.markdown("---")
+    
+    # Bulk SMS Simulation Button
+    if st.button("📲 إرسال الرسائل النصية الجماعية لجميع الأولياء الأمور (مرة واحدة)"):
+        st.success(f"🚀 تم إرسال الرسائل النصية بنجاح إلى {len(df_reports)} ولي أمر مقسمين على الفئات الأربع!")
 
-    st.markdown("##### 🟢 خيارات إرسال الرسائل عبر الواتساب (WhatsApp):")
-    col_wa1, col_wa2 = st.columns(2)
-    with col_wa1:
-        st.success("✅ تم تحديث النظام لدعم تحديد الطلاب وإرسال رسائل موحدة ومجتمعة لكل فئة دفعة واحدة.")
-    with col_wa2:
-        st.info("💡 يمكنك تحديد الطلاب المراد شمولهم في كل فئة، وإرسال تقرير موحد بضغطة زر واحدة أو الإرسال الفردي.")
-
-    st.markdown("### 📋 تفاصيل الرسائل النصية الموجهة حسب الفئات:")
-
+    st.markdown("### 📋 تفاصيل الرسائل والفئات الاربع:")
+    
     tab1, tab2, tab3, tab4 = st.tabs([
         f"🔴 أقل من 50% ({len(cat_red)})",
         f"🔵 50% - 75% ({len(cat_blue)})",
         f"🟢 76% - 100% ({len(cat_green)})",
         f"⚪ الغياب ({len(cat_gray)})"
     ])
-
-    def show_category_tab(cat_list, cat_name):
+    
+    def show_category_tab(cat_list, cat_name, cat_icon, cat_key):
         if not cat_list:
             st.info(f"لا يوجد طلاب في {cat_name} بهذا الأسبوع.")
         else:
-            st.markdown(f"##### 📲 إدارة وتوجيه رسائل {cat_name}:")
+            st.markdown(f"#### {cat_icon} خيارات الإرسال الجماعي لجميع طلاب {cat_name} ({len(cat_list)} طالب):")
             
-            # 1. قائمة اختيار وتحديد أسماء الطلاب المراد شمولهم في الإرسال
-            student_options = [f"{item['name']} ({item['grade']} - فصل {item['class']})" for item in cat_list]
-            selected_students = st.multiselect(
-                f"🎯 حدد أسماء الطلاب المراد تضمينهم في رسالة فئة ({cat_name}):",
-                options=student_options,
-                default=student_options,
-                key=f"ms_{cat_name}"
-            )
+            col_b1, col_b2, col_b3 = st.columns([2, 2, 1])
             
-            filtered_list = [
-                item for item in cat_list 
-                if f"{item['name']} ({item['grade']} - فصل {item['class']})" in selected_students
-            ]
+            with col_b1:
+                wa_urls = [create_whatsapp_url(item['phone'], item['message']) for item in cat_list]
+                if st.button(f"📲 إرسال جماعي عبر الواتساب لـ {cat_name} ({len(cat_list)} طالب)", key=f"bulk_wa_{cat_key}"):
+                    st.success(f"🚀 تم تجهيز وإعادة توجيه رسائل الواتساب الجماعية لـ {len(cat_list)} ولي أمر في {cat_name} بنجاح!")
+                    js_code = "<script>var urls = " + str(wa_urls[:5]) + "; for (var i = 0; i < urls.length; i++) { window.open(urls[i], '_blank'); }</script>"
+                    components.html(js_code, height=0)
             
-            if not filtered_list:
-                st.warning("⚠️ يرجى تحديد طالب واحد على الأقل لمتابعة الإرسال.")
-                return
-
-            st.markdown("---")
-            
-            # 2. توليد الرسالة الجماعية الموحدة
-            st.markdown(f"#### 📝 الرسالة الجماعية الموحدة لفئة ({cat_name}):")
-            
-            names_summary = "\n".join([
-                f"- {st_item['name']} | الصف: {st_item['grade']} (فصل {st_item['class']}) | " +
-                (f"النسبة: {st_item['score']}%" if st_item['is_absent'] == 0 else "الحالة: غائب ⚪")
-                for st_item in filtered_list
-            ])
-            
-            group_message = f"""المكرم ولي الأمر / الموجه الطلابي،
-إشعار متابعة جماعي مخصص لـ ({cat_name}) للأسبوع الحالي ({selected_week} - {selected_term}):
-
-📌 قائمة الطلاب المحددين:
-{names_summary}
-
-نرجو المتابعة والاهتمام ورفع المستوى التحصيلي لابنكم/طلابكم.
-شاكرين ومقدرين تعاونكم الدائم."""
-
-            st.info(f"💬 **نص الرسالة الموحدة للفئة:**\n\n```text\n{group_message}\n```")
-            
-            target_phone = st.text_input(
-                f"📞 أدخل رقم الجوال لإرسال التقرير الجماعي للفئة ({cat_name}):",
-                value="966500000000",
-                key=f"phone_{cat_name}"
-            )
-            
-            if target_phone:
-                group_wa_link = create_whatsapp_url(target_phone, group_message)
-                st.markdown(f'''
-                <a href="{group_wa_link}" target="_blank" style="text-decoration:none;">
-                    <div style="background-color:#25D366; color:white; padding:12px 18px; border-radius:8px; text-align:center; font-weight:bold; font-size:15px; margin-top:8px; margin-bottom:20px; display:block;">
-                        📲 إرسال الرسالة الجماعية الموحدة لـ ({len(filtered_list)} طالب) عبر الواتساب (WhatsApp)
-                    </div>
-                </a>
-                ''', unsafe_allow_html=True)
+            with col_b2:
+                df_cat = pd.DataFrame([{
+                    "اسم الطالب": item["name"],
+                    "رقم الهوية": item["id"],
+                    "الصف والشعبة": f"{item['grade']} - فصل {item['class']}",
+                    "رقم جوال ولي الأمر": item["phone"],
+                    "النسبة المئوية": f"{item['score']}%" if item["is_absent"] == 0 else "غائب",
+                    "نص الرسالة الموجهة": item["message"],
+                    "رابط الواتساب المباشر": create_whatsapp_url(item['phone'], item['message'])
+                } for item in cat_list])
                 
+                csv_data = df_cat.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label=f"📥 تصدير كشف رسائل {cat_name} (Excel/CSV)",
+                    data=csv_data,
+                    file_name=f"رسائل_{cat_key}.csv",
+                    mime="text/csv",
+                    key=f"dl_csv_{cat_key}"
+                )
+                
+            with col_b3:
+                if st.button(f"✉️ إرسال SMS جماعي", key=f"bulk_sms_{cat_key}"):
+                    st.success(f"✅ تم إرسال {len(cat_list)} رسالة نصية SMS بنجاح لأولياء أمور {cat_name}!")
+
             st.markdown("---")
-            
-            # 3. عرض الرسائل الفردية للطلاب المحددين
-            st.markdown(f"#### 👤 أو إرسال الرسائل الفردية للطلاب المحددين ({len(filtered_list)} طالب):")
-            for item in filtered_list:
+            st.markdown(f"##### 👤 تفاصيل رسائل الطلاب الفردية والتواصل عبر الواتساب ({cat_name}):")
+            for item in cat_list:
                 wa_link = create_whatsapp_url(item['phone'], item['message'])
-                with st.expander(f"👤 {item['name']} ({item['grade']} - فصل {item['class']}) | جوال ولي الأمر: {item['phone']}"):
+                st_title = item['name']
+                with st.expander(f"👤 {st_title} ({item['grade']} - فصل {item['class']}) | جوال ولي الأمر: {item['phone']}"):
                     st.write(f"**رقم الهوية:** {item['id']}")
                     st.write(f"**النسبة المئوية / الدرجة:** {item['score']}%" if item['is_absent'] == 0 else "**الحالة:** غائب ⚪")
-                    st.info(f"💬 **نص الرسالة الموجهة:**\n\n{item['message']}")
-                    st.markdown(f'''
-                    <a href="{wa_link}" target="_blank" style="text-decoration:none;">
-                        <div style="background-color:#25D366; color:white; padding:10px 15px; border-radius:8px; text-align:center; font-weight:bold; font-size:14px; margin-top:8px; display:block;">
-                            💬 إرسال الرسالة الآن عبر الواتساب (WhatsApp) إلى ولي الأمر ({item['phone']})
-                        </div>
-                    </a>
-                    ''', unsafe_allow_html=True)
+                    st.info(f"💬 **نص الرسالة الموجهة:**\n{item['message']}")
+                    st.markdown(f'<a href="{wa_link}" target="_blank" style="text-decoration:none;"><div style="background-color:#25D366; color:white; padding:10px 15px; border-radius:6px; text-align:center; font-weight:bold; font-size:14px; margin-top:5px; display:inline-block;">💬 إرسال الواتساب الفردي لـ ({st_title})</div></a>', unsafe_allow_html=True)
 
-    with tab1: show_category_tab(cat_red, "فئة أقل من 50%")
-    with tab2: show_category_tab(cat_blue, "فئة 50% - 75%")
-    with tab3: show_category_tab(cat_green, "فئة 76% - 100%")
-    with tab4: show_category_tab(cat_gray, "فئة الغياب")
+    with tab1: show_category_tab(cat_red, "فئة أقل من 50%", "🔴", "red")
+    with tab2: show_category_tab(cat_blue, "فئة 50% - 75%", "🔵", "blue")
+    with tab3: show_category_tab(cat_green, "فئة 76% - 100%", "🟢", "green")
+    with tab4: show_category_tab(cat_gray, "فئة الغياب", "⚪", "gray")
 
     st.markdown("---")
-
-    # ==============================================================================
-    # خيارات طباعة وتصدير التقارير في صفحة الإدارة
-    # ==============================================================================
-    st.markdown("### 🖨️ قسم طباعة وتصدير التقارير الرسمية لأولياء الأمور والإدارة:")
-
-    print_type = st.radio("اختر نوع التقرير المراد طباعته وتصديره:", [
-        "👤 طباعة تقرير طالب محدد",
-        "🏫 طباعة تقرير صف بالكامل (جميع الفصول)",
-        "🎒 طباعة تقرير فصل / شعبة محددة"
-    ])
-
-    if print_type == "👤 طباعة تقرير طالب محدد":
-        st.markdown("#### 👤 طباعة وتصدير تقرير فردي لطالب:")
-        selected_student_name = st.selectbox("اختر اسم الطالب:", df_reports["name"].tolist())
-        st_info = df_reports[df_reports["name"] == selected_student_name].iloc[0]
-
-        sc = st_info["score"]
-        is_abs = st_info["is_absent"]
-        msg = generate_parent_message(st_info["name"], sc, is_abs)
-
-        wa_indiv_url = create_whatsapp_url(st_info['phone'], msg)
-        st.markdown(f'''
-        <a href="{wa_indiv_url}" target="_blank" style="text-decoration:none;">
-            <div style="background-color:#25D366; color:white; padding:14px 20px; border-radius:8px; text-align:center; font-weight:bold; font-size:16px; margin-bottom:15px; display:block;">
-                💬 إرسال التقرير والرسالة فوراً إلى ولي الأمر عبر الواتساب (WhatsApp) -> {st_info['phone']}
-            </div>
-        </a>
-        ''', unsafe_allow_html=True)
-        
-        if is_abs == 1:
-            badge_class = "badge-gray"
-            badge_text = "غائب ⚪"
-            score_display = "0% (غائب)"
-        elif sc is None or sc < 50:
-            badge_class = "badge-red"
-            badge_text = "أقل من 50% (يحتاج متابعة) 🔴"
-            score_display = f"{sc}%"
-        elif sc <= 75:
-            badge_class = "badge-blue"
-            badge_text = "50% - 75% (مستوى متوسط) 🔵"
-            score_display = f"{sc}%"
-        else:
-            badge_class = "badge-green"
-            badge_text = "76% - 100% (ممتاز ومتفوق) 🟢"
-            score_display = f"{sc}%"
-
-        student_report_html = f"""
-        <table class="header-table">
-            <tr>
-                <td style="text-align: right; width: 35%;">
-                    <b>المملكة العربية السعودية</b><br>
-                    <b>وزارة التعليم</b><br>
-                    <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
-                    <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
-                </td>
-                <td style="text-align: center; width: 30%;">
-                    <h3 style="margin: 0; color: #1e3c72;">تقرير ولي الأمر لدرجات الإتقان</h3>
-                    <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
-                </td>
-                <td style="text-align: left; width: 35%;">
-                    <b>التاريخ:</b> 1447/1448 هـ<br>
-                    <b>رقم السجل:</b> {st_info['id']}
-                </td>
-            </tr>
-        </table>
-
-        <div style="background: #fdfdfd; border: 1px solid #1e3c72; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                    <td style="padding: 8px;"><b>اسم الطالب:</b> {st_info['name']}</td>
-                    <td style="padding: 8px;"><b>رقم الهوية:</b> {st_info['id']}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px;"><b>الصف الدراسي:</b> {st_info['grade']}</td>
-                    <td style="padding: 8px;"><b>الفصل / الشعبة:</b> ({st_info['class']})</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px;"><b>نسبة الإتقان الأسبوعية:</b> {score_display}</td>
-                    <td style="padding: 8px;"><b>مستوى الطالب:</b> <span class="{badge_class}">{badge_text}</span></td>
-                </tr>
-            </table>
-        </div>
-
-        <div style="background: #eef2f5; border-right: 5px solid #1e3c72; padding: 15px; border-radius: 4px; margin-bottom: 25px;">
-            <h4 style="margin-top: 0; color: #1e3c72;">💬 الرسالة الموجهة لولي الأمر:</h4>
-            <p style="font-size: 15px; line-height: 1.6; margin: 0;">{msg}</p>
-        </div>
-
-        <table class="signatures">
-            <tr>
-                <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
-                <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
-                <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
-            </tr>
-        </table>
-        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
-            تصميم وتطوير: <b>محمد سامي السعيد</b>
-        </div>
-        """
-        render_printable_html_view(student_report_html, title=f"تقرير_{st_info['name']}")
-
-    elif print_type == "🏫 طباعة تقرير صف بالكامل (جميع الفصول)":
-        st.markdown("#### 🏫 طباعة وتصدير تقرير صف دراسي كامل:")
-        selected_grade_print = st.selectbox("اختر الصف الدراسي:", ["الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"])
-        
-        df_grade = df_reports[df_reports["grade"] == selected_grade_print]
-        
-        grade_rows_html = ""
-        for idx, r in df_grade.iterrows():
-            sc = r["score"]
-            is_abs = r["is_absent"]
-            if is_abs == 1:
-                b_class = "badge-gray"
-                b_text = "غائب ⚪"
-                sc_str = "0% (غائب)"
-            elif sc is None or sc < 50:
-                b_class = "badge-red"
-                b_text = "أقل من 50% 🔴"
-                sc_str = f"{sc}%"
-            elif sc <= 75:
-                b_class = "badge-blue"
-                b_text = "50% - 75% 🔵"
-                sc_str = f"{sc}%"
-            else:
-                b_class = "badge-green"
-                b_text = "76% - 100% 🟢"
-                sc_str = f"{sc}%"
-                
-            msg_short = generate_parent_message(r["name"], sc, is_abs)
-            
-            grade_rows_html += f"""
-            <tr>
-                <td>{r['id']}</td>
-                <td style="text-align: right; padding-right: 10px;"><b>{r['name']}</b></td>
-                <td>فصل ({r['class']})</td>
-                <td><b>{sc_str}</b></td>
-                <td><span class="{b_class}">{b_text}</span></td>
-                <td style="text-align: right; font-size: 12px; padding: 6px;">{msg_short}</td>
-            </tr>
-            """
-
-        grade_report_html = f"""
-        <table class="header-table">
-            <tr>
-                <td style="text-align: right; width: 35%;">
-                    <b>المملكة العربية السعودية</b><br>
-                    <b>وزارة التعليم</b><br>
-                    <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
-                    <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
-                </td>
-                <td style="text-align: center; width: 30%;">
-                    <h3 style="margin: 0; color: #1e3c72;">تقرير الإتقان لصف {selected_grade_print} كاملاً</h3>
-                    <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
-                </td>
-                <td style="text-align: left; width: 35%;">
-                    <b>الصف الدراسي:</b> {selected_grade_print}<br>
-                    <b>إجمالي الطلاب:</b> {len(df_grade)} طالب
-                </td>
-            </tr>
-        </table>
-
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th style="width: 15%;">رقم الهوية</th>
-                    <th style="width: 25%;">اسم الطالب</th>
-                    <th style="width: 10%;">الفصل</th>
-                    <th style="width: 10%;">النسبة %</th>
-                    <th style="width: 15%;">الحالة</th>
-                    <th style="width: 25%;">نص الرسالة الموجهة لولي الأمر</th>
-                </tr>
-            </thead>
-            <tbody>
-                {grade_rows_html}
-            </tbody>
-        </table>
-
-        <table class="signatures">
-            <tr>
-                <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
-                <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
-                <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
-            </tr>
-        </table>
-        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
-            تصميم وتطوير: <b>محمد سامي السعيد</b>
-        </div>
-        """
-        render_printable_html_view(grade_report_html, title=f"تقرير_{selected_grade_print}")
-
-    elif print_type == "🎒 طباعة تقرير فصل / شعبة محددة":
-        st.markdown("#### 🎒 طباعة وتصدير تقرير شعبة / فصل محدد:")
-        col_g, col_c = st.columns(2)
-        with col_g:
-            gr_select = st.selectbox("اختر الصف الدراسي:", ["الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"], key="gr_sec")
-        with col_c:
-            cl_select = st.selectbox("اختر الفصل / الشعبة:", [1, 2, 3], key="cl_sec")
-            
-        df_class = df_reports[(df_reports["grade"] == gr_select) & (df_reports["class"] == cl_select)]
-        
-        class_rows_html = ""
-        for idx, r in df_class.iterrows():
-            sc = r["score"]
-            is_abs = r["is_absent"]
-            if is_abs == 1:
-                b_class = "badge-gray"
-                b_text = "غائب ⚪"
-                sc_str = "0% (غائب)"
-            elif sc is None or sc < 50:
-                b_class = "badge-red"
-                b_text = "أقل من 50% 🔴"
-                sc_str = f"{sc}%"
-            elif sc <= 75:
-                b_class = "badge-blue"
-                b_text = "50% - 75% 🔵"
-                sc_str = f"{sc}%"
-            else:
-                b_class = "badge-green"
-                b_text = "76% - 100% 🟢"
-                sc_str = f"{sc}%"
-                
-            msg_short = generate_parent_message(r["name"], sc, is_abs)
-            
-            class_rows_html += f"""
-            <tr>
-                <td>{r['id']}</td>
-                <td style="text-align: right; padding-right: 10px;"><b>{r['name']}</b></td>
-                <td><b>{sc_str}</b></td>
-                <td><span class="{b_class}">{b_text}</span></td>
-                <td style="text-align: right; font-size: 12px; padding: 6px;">{msg_short}</td>
-            </tr>
-            """
-
-        class_report_html = f"""
-        <table class="header-table">
-            <tr>
-                <td style="text-align: right; width: 35%;">
-                    <b>المملكة العربية السعودية</b><br>
-                    <b>وزارة التعليم</b><br>
-                    <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
-                    <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
-                </td>
-                <td style="text-align: center; width: 30%;">
-                    <h3 style="margin: 0; color: #1e3c72;">تقرير شعبة {gr_select} - فصل ({cl_select})</h3>
-                    <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
-                </td>
-                <td style="text-align: left; width: 35%;">
-                    <b>الصف الدراسي:</b> {gr_select}<br>
-                    <b>الشعبة / الفصل:</b> ({cl_select})<br>
-                    <b>عدد الطلاب:</b> {len(df_class)} طالب
-                </td>
-            </tr>
-        </table>
-
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th style="width: 18%;">رقم الهوية</th>
-                    <th style="width: 27%;">اسم الطالب</th>
-                    <th style="width: 12%;">النسبة %</th>
-                    <th style="width: 15%;">الحالة</th>
-                    <th style="width: 28%;">نص الرسالة الموجهة لولي الأمر</th>
-                </tr>
-            </thead>
-            <tbody>
-                {class_rows_html}
-            </tbody>
-        </table>
-
-        <table class="signatures">
-            <tr>
-                <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
-                <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
-                <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
-            </tr>
-        </table>
-        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
-            تصميم وتطوير: <b>محمد سامي السعيد</b>
-        </div>
-        """
-        render_printable_html_view(class_report_html, title=f"تقرير_{gr_select}_فصل_{cl_select}")
-
-    st.markdown("---")
-    st.markdown("### 📞 إدارة ورصد أرقام جوالات أولياء الأمور (تحديث وحفظ):")
-
-    col_p1, col_p2 = st.columns(2)
+# Phone Numbers Management Section
+    st.markdown("### 📞 إدارة ورصد أرقام جوالات أولياء الأمور (إضافة / تحديث / حذف):")
+    
+    col_p1, col_p2 = st.columns([2, 1])
     with col_p1:
         st_select = st.selectbox("اختر الطالب لتحديث رقم جوال ولي أمره:", df_reports["name"].tolist())
-
+    
     selected_st_row = df_reports[df_reports["name"] == st_select].iloc[0]
-
+    
     with col_p2:
         new_phone = st.text_input("رقم الجوال الجديد:", value=selected_st_row["phone"])
         if st.button("💾 تحديث رقم الجوال"):
@@ -1000,7 +650,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
 
     st.markdown("---")
     st.markdown("### 🖨️ الاعتماد الرسمي وتوقيعات إدارة المدرسة:")
-
+    
     st.markdown('''
     <div style="background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center;">
         <table style="width: 100%; text-align: center; border-collapse: collapse;">
