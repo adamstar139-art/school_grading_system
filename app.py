@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import openpyxl
+import urllib.parse
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 import io
 import streamlit.components.v1 as components
@@ -240,13 +241,23 @@ init_db()
 # ==============================================================================
 # 2. الدوال المساعدة وصياغة الرسائل
 # ==============================================================================
+
+def create_whatsapp_url(phone, text):
+    phone_clean = str(phone).strip().replace("+", "").replace(" ", "").replace("-", "")
+    if phone_clean.startswith("05"):
+        phone_clean = "966" + phone_clean[1:]
+    elif phone_clean.startswith("5"):
+        phone_clean = "966" + phone_clean
+    encoded_text = urllib.parse.quote(text)
+    return f"https://api.whatsapp.com/send?phone={phone_clean}&text={encoded_text}"
+
 def generate_parent_message(student_name, score, is_absent):
     if is_absent:
         return f"""المكرم ولي أمر الطالب/ {student_name}، نود التنبيه على غياب الطالب هذا الأسبوع، ونحثكم على متابعة الانتظام وحضوره الاختبارات لتجنب حسم الدرجات والتأثير على مستواه الدراسي."""
     elif score is None or score < 50:
         sc_str = f"{score}%" if score is not None else "أقل من 50%"
         return f"""المكرم ولي أمر الطالب/ {student_name}،
-حرصاً منا على مصلحة ابنكم ومستقبله الدراسي، نود إشعاركم بوجود تراجع ملحوظ في مستواه التحصيلي مؤخراً بنسبة ({sc_str}) .
+حرصاً منا على مصلحة ابنكم ومستقبله الدراسي، نود إشعاركم بوجود تراجع ملحوظ في مستواه التحصيلي مؤخراً بنسبة ({sc_str}) وهي أقل من 50%.
 نرجو منكم تكثيف المتابعة المنزلية والتواصل معنا للوقوف على أسباب هذا التراجع ووضع خطة لتحسين أدائه.
 شاكرين تعاونكم، مع تحياتنا ونأمل منكم المتابعة والعمل على رفع مستواه الدراسي."""
     elif score <= 75:
@@ -259,7 +270,6 @@ def generate_parent_message(student_name, score, is_absent):
 يسعدنا إبلاغكم بأن ابنكم قدم أداءً تحصيلياً متميزاً وسلوكاً رائعاً داخل الفصل، وحصل على نسبة إتقان ممتازة ({score}%).
 نشكر لكم حسن المتابعة والاهتمام، ونرجو الاستمرار في هذا الدعم المتبادل للحفاظ على هذا المستوى المتفوق.
 مع أطيب دعواتنا له بالتوفيق والاستمرارية، مع تحياتنا."""
-
 # دالة توليد صفحة طباعة HTML تفاعلية للطباعة المباشرة من المتصفح
 def render_printable_html_view(html_content, title="طباعة التقرير"):
     full_html = f'''
@@ -269,86 +279,48 @@ def render_printable_html_view(html_content, title="طباعة التقرير"):
         <meta charset="utf-8">
         <title>{title}</title>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
-            body {{
-                font-family: 'Tajawal', sans-serif;
-                direction: rtl;
-                text-align: right;
-                background-color: #ffffff;
-                color: #222;
-                padding: 15px;
-                margin: 0;
-            }}
-            .print-container {{
-                max-width: 900px;
-                margin: 0 auto;
-                background: #fff;
-                padding: 25px;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-            }}
-            .print-btn {{
-                background-color: #1e3c72;
-                color: white;
-                padding: 12px 25px;
-                font-size: 16px;
-                font-weight: bold;
-                border: none;
-                border-radius: 6px;
-                cursor: pointer;
-                margin-bottom: 20px;
-                display: block;
-                width: 100%;
-            }}
-            .print-btn:hover {{
-                background-color: #2a5298;
-            }}
-            .header-table {{
-                width: 100%;
-                margin-bottom: 20px;
-                border-bottom: 2px solid #1e3c72;
-                padding-bottom: 10px;
-            }}
-            .header-table td {{
-                vertical-align: middle;
-            }}
-            table.data-table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-                margin-bottom: 20px;
-            }}
-            table.data-table th, table.data-table td {{
-                border: 1px solid #333;
-                padding: 8px 10px;
-                text-align: center;
-                font-size: 14px;
-            }}
-            table.data-table th {{
-                background-color: #1e3c72;
-                color: white;
-            }}
-            .signatures {{
-                margin-top: 40px;
-                width: 100%;
-                text-align: center;
-                border-top: 1px solid #ccc;
-                padding-top: 15px;
-            }}
-            .signatures td {{
-                padding: 10px;
-                font-weight: bold;
-            }}
-            .badge-red {{ background-color: #FFEBEE; color: #C62828; font-weight: bold; padding: 4px 8px; border-radius: 4px; }}
-            .badge-blue {{ background-color: #E3F2FD; color: #1565C0; font-weight: bold; padding: 4px 8px; border-radius: 4px; }}
-            .badge-green {{ background-color: #E8F5E9; color: #2E7D32; font-weight: bold; padding: 4px 8px; border-radius: 4px; }}
-            .badge-gray {{ background-color: #F5F5F5; color: #616161; font-weight: bold; padding: 4px 8px; border-radius: 4px; }}
-            @media print {{
-                .no-print {{ display: none !important; }}
-                body {{ padding: 0; }}
-                .print-container {{ border: none; padding: 0; }}
-            }}
-        </style>
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+    html, body, [class*="css"], .stMarkdown, .stText, div[data-baseweb="input"], div[data-baseweb="select"], .stNumberInput input {
+        font-family: 'Tajawal', sans-serif !important;
+        direction: rtl !important;
+        text-align: right !important;
+    }
+    .stApp {
+        background-color: #f8fafc;
+    }
+    .header-box {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+        padding: 22px;
+        border-radius: 14px;
+        text-align: center !important;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+    }
+    /* محاذاة أسماء الطلاب ناحية اليمين بوضوح */
+    .student-name-box {
+        text-align: right !important;
+        direction: rtl !important;
+        font-weight: 700;
+        font-size: 16px;
+        color: #1e3c72;
+        padding: 6px 10px;
+        background-color: #ffffff;
+        border-right: 4px solid #2a5298;
+        border-radius: 6px;
+        margin-bottom: 8px;
+    }
+    .stDataFrame table, .stDataFrame td, .stDataFrame th {
+        text-align: right !important;
+        direction: rtl !important;
+    }
+    div[data-testid="stForm"] {
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        padding: 20px;
+        background-color: #ffffff;
+    }
+</style>
     </head>
     <body>
         <div class="print-container">
@@ -446,7 +418,7 @@ if page == "📝 صفحة الرصد":
             for idx, row in df_students.iterrows():
                 col_name, col_score, col_absent = st.columns([3, 2, 1])
                 with col_name:
-                    st.write(f"**{idx+1}. {row['name']}** (`{row['id']}`)")
+                    st.markdown(f'<div class="student-name-box">📌 {idx+1}. {row["name"]} <span style="font-size: 12px; color: #64748b; font-weight: normal;">({row["id"]})</span></div>', unsafe_allow_html=True)
                 with col_score:
                     # القيمة الافتراضية عند أول رصد تكون صفر
                     curr_score = float(row["score"]) if (pd.notnull(row["score"]) and row["score"] is not None) else 0.0
@@ -669,8 +641,14 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
 
     st.markdown("---")
     
-    if st.button("📲 إرسال الرسائل النصية الجماعية لجميع الأولياء الأمور (مرة واحدة)"):
-        st.success(f"🚀 تم إرسال الرسائل النصية بنجاح إلى {len(df_reports)} ولي أمر مقسمين على الفئات الأربع!")
+    st.markdown("##### 🟢 خيارات إرسال الرسائل عبر الواتساب (WhatsApp):")
+    col_wa1, col_wa2 = st.columns(2)
+    with col_wa1:
+        st.success("✅ يتم توليد رابط واتساب مباشر لكل طالب يتضمن رقم جوال ولي الأمر ونص الرسالة المخصص تلقائياً.")
+    with col_wa2:
+        st.info("💡 اضغط على زر **'إرسال الرسالة الآن عبر الواتساب'** الأخضر أمام كل طالب لفتح محادثة الواتساب فوراً مع الرسالة المجهزة.")
+
+
 
     st.markdown("### 📋 تفاصيل الرسائل النصية الموجهة حسب الفئات:")
     
@@ -685,11 +663,21 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         if not cat_list:
             st.info(f"لا يوجد طلاب في {cat_name} بهذا الأسبوع.")
         else:
+            st.markdown(f"##### 📲 قائمة رسائل {cat_name} الموجهة لولي الأمر عبر الواتساب:")
             for item in cat_list:
+                wa_link = create_whatsapp_url(item['phone'], item['message'])
                 with st.expander(f"👤 {item['name']} ({item['grade']} - فصل {item['class']}) | جوال ولي الأمر: {item['phone']}"):
                     st.write(f"**رقم الهوية:** {item['id']}")
                     st.write(f"**النسبة المئوية / الدرجة:** {item['score']}%" if item['is_absent'] == 0 else "**الحالة:** غائب ⚪")
-                    st.info(f"💬 **نص الرسالة الموجهة:**\n{item['message']}")
+                    st.info(f"""💬 **نص الرسالة الموجهة:**
+{item['message']}""")
+                    st.markdown(f'''
+                    <a href="{wa_link}" target="_blank" style="text-decoration:none;">
+                        <div style="background-color:#25D366; color:white; padding:12px 18px; border-radius:8px; text-align:center; font-weight:bold; font-size:15px; margin-top:8px; display:block;">
+                            💬 إرسال الرسالة الآن عبر الواتساب (WhatsApp) إلى ولي الأمر ({item['phone']})
+                        </div>
+                    </a>
+                    ''', unsafe_allow_html=True)
 
     with tab1: show_category_tab(cat_red, "فئة أقل من 50%")
     with tab2: show_category_tab(cat_blue, "فئة 50% - 75%")
@@ -713,6 +701,16 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         st.markdown("#### 👤 طباعة وتصدير تقرير فردي لطالب:")
         selected_student_name = st.selectbox("اختر اسم الطالب:", df_reports["name"].tolist())
         st_info = df_reports[df_reports["name"] == selected_student_name].iloc[0]
+
+        wa_indiv_url = create_whatsapp_url(st_info['phone'], msg)
+        st.markdown(f'''
+        <a href="{wa_indiv_url}" target="_blank" style="text-decoration:none;">
+            <div style="background-color:#25D366; color:white; padding:14px 20px; border-radius:8px; text-align:center; font-weight:bold; font-size:16px; margin-bottom:15px; display:block;">
+                💬 إرسال التقرير والرسالة فوراً إلى ولي الأمر عبر الواتساب (WhatsApp) -> {st_info['phone']}
+            </div>
+        </a>
+        ''', unsafe_allow_html=True)
+
         
         sc = st_info["score"]
         is_abs = st_info["is_absent"]
