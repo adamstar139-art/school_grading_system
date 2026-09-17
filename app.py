@@ -215,9 +215,9 @@ page = st.sidebar.radio("اختر الصفحة:", ["📝 صفحة الرصد", "
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### ⚙️ إعدادات Mora SMS")
-mora_user = st.sidebar.text_input("اسم المستخدم في مورا:", value="0560229124")
-mora_pass = st.sidebar.text_input("كلمة المرور:", value="@THA0508634881", type="password")
-mora_sender = st.sidebar.text_input("اسم المرسل المعتمد:", value="AlThaghr")
+mora_user = st.sidebar.text_input("اسم المستخدم في مورا:", value="966560229124")
+mora_pass = st.sidebar.text_input("كلمة المرور:", value="THA@0508634881", type="password")
+mora_sender = st.sidebar.text_input("اسم المرسل المعتمد:", value="S")
 mora_endpoint = st.sidebar.text_input("رابط API مورا:", value="https://mora-sa.com/api/v1/sendsms")
 
 ### ==============================================================================
