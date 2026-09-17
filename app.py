@@ -250,7 +250,7 @@ def create_whatsapp_url(phone, text):
     encoded_text = urllib.parse.quote(text)
     return f"https://api.whatsapp.com/send?phone={phone_clean}&text={encoded_text}"
 
-def send_mora_sms(phone, message, username="0560229124", password="@THA0508634881", sender_name="AlThaghr", otp_code=""):
+def send_mora_sms(phone, message, username="966560229124", password="@THA0508634881", sender_name="s", otp_code=""):
     """
     دالة إرسال الرسائل النصية القصيرة عبر بوابة Mora SMS (mora-sa.com)
     تتحكم في تهيئة أرقام الجوال بالمفتاح الدولي وإرسال الطلب لـ API منصة مورا.
