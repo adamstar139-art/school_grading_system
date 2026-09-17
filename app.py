@@ -698,157 +698,78 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
     # ==============================================================================
     # خيارات طباعة وتصدير التقارير في صفحة الإدارة (جديد وحصري)
     # ==============================================================================
-    st.markdown("### 🖨️ قسم طباعة وتصدير التقارير الرسمية لأولياء الأمور والإدارة:")
+    elif page == "🏫 إدارة المدرسة وتقارير أولياء الأمور":
+    st.subheader("🏫 إدارة المدرسة وإرسال وتقارير أولياء الأمور")
     
+    col_w1, col_w2 = st.columns(2)
+    with col_w1:
+        weeks = [f"الأسبوع {i}" for i in range(1, 19)]
+        selected_week = st.selectbox("اختر الأسبوع لعرض التقرير والرسائل:", weeks)
+    with col_w2:
+        selected_term = st.selectbox("اختر الفصل الدراسي:", ["الفصل الدراسي الأول", "الفصل الدراسي الثاني"])
+        
+    st.markdown("---")
+
+    conn = get_db_connection()
+    query = """
+        SELECT s.id, s.name, s.grade, s.class, s.phone, g.score, g.is_absent
+        FROM students s
+        LEFT JOIN grades g ON s.id = g.student_id AND g.term = ? AND g.week = ?
+        ORDER BY s.grade, s.class, s.name
+    """
+    df_reports = pd.read_sql_query(query, conn, params=(selected_term, selected_week))
+    conn.close()
+
+    # ==============================================================================
+    # قسم طباعة وتصدير التقارير (محاذاة بـ 4 مسافات)
+    # ==============================================================================
+    st.markdown("---")
+    st.markdown("### 🖨️ قسم طباعة وتصدير التقارير الرسمية لأولياء الأمور والإدارة:")
+
     print_type = st.radio("اختر نوع التقرير المراد طباعته وتصديره:", [
         "👤 طباعة تقرير طالب محدد",
         "🏫 طباعة تقرير صف بالكامل (جميع الفصول)",
         "🎒 طباعة تقرير فصل / شعبة محددة"
     ])
-  print_type = st.radio("اختر نوع التقرير المراد طباعته وتصديره:", [
-    "👤 طباعة تقرير طالب محدد",
-    "🏫 طباعة تقرير صف بالكامل (جميع الفصول)",
-    "🎒 طباعة تقرير فصل / شعبة محددة"
-])
 
-# بداية البلوك الشرطي باستخدام if بدلاً من elif
-if print_type == "👤 طباعة تقرير طالب محدد":
-    st.markdown("#### 👤 طباعة وتصدير تقرير فردي لطالب:")
-    selected_student_name = st.selectbox("اختر اسم الطالب:", df_reports["name"].tolist())
-    st_info = df_reports[df_reports["name"] == selected_student_name].iloc
+    if print_type == "👤 طباعة تقرير طالب محدد":
+        st.markdown("#### 👤 طباعة وتصدير تقرير فردي لطالب:")
+        selected_student_name = st.selectbox("اختر اسم الطالب:", df_reports["name"].tolist())
+        st_info = df_reports[df_reports["name"] == selected_student_name].iloc
 
-    # 1. استخراج الدرجة والغياب وتوليد نص الرسالة أولاً
-    sc = st_info["score"]
-    is_abs = st_info["is_absent"]
-    msg = generate_parent_message(st_info["name"], sc, is_abs)
+        # 1. حساب قيمة msg وتوليد النص أولاً لتفادي NameError
+        sc = st_info["score"]
+        is_abs = st_info["is_absent"]
+        msg = generate_parent_message(st_info["name"], sc, is_abs)
 
-    # 2. إنشاء رابط الواتساب بعد تعريف msg
-    wa_indiv_url = create_whatsapp_url(st_info['phone'], msg)
-    st.markdown(f'''
-    <a href="{wa_indiv_url}" target="_blank" style="text-decoration:none;">
-        <div style="background-color:#25D366; color:white; padding:14px 20px; border-radius:8px; text-align:center; font-weight:bold; font-size:16px; margin-bottom:15px; display:block;">
-            💬 إرسال التقرير والرسالة فوراً إلى ولي الأمر عبر الواتساب (WhatsApp) -> {st_info['phone']}
-        </div>
-    </a>
-    ''', unsafe_allow_html=True)
+        # 2. إنشاء رابط الواتساب بعد تعريف msg
+        wa_indiv_url = create_whatsapp_url(st_info['phone'], msg)
+        st.markdown(f'''
+        <a href="{wa_indiv_url}" target="_blank" style="text-decoration:none;">
+            <div style="background-color:#25D366; color:white; padding:14px 20px; border-radius:8px; text-align:center; font-weight:bold; font-size:16px; margin-bottom:15px; display:block;">
+                💬 إرسال التقرير والرسالة فوراً إلى ولي الأمر عبر الواتساب (WhatsApp) -> {st_info['phone']}
+            </div>
+        </a>
+        ''', unsafe_allow_html=True)
 
-    if is_abs == 1:
-        badge_class = "badge-gray"
-        badge_text = "غائب ⚪"
-        score_display = "0% (غائب)"
-    elif sc is None or sc < 50:
-        badge_class = "badge-red"
-        badge_text = "أقل من 50% (يحتاج متابعة) 🔴"
-        score_display = f"{sc}%"
-    elif sc <= 75:
-        badge_class = "badge-blue"
-        badge_text = "50% - 75% (مستوى متوسط) 🔵"
-        score_display = f"{sc}%"
-    else:
-        badge_class = "badge-green"
-        badge_text = "76% - 100% (ممتاز ومتفوق) 🟢"
-        score_display = f"{sc}%"
+        if is_abs == 1:
+            badge_class = "badge-gray"
+            badge_text = "غائب ⚪"
+            score_display = "0% (غائب)"
+        elif sc is None or sc < 50:
+            badge_class = "badge-red"
+            badge_text = "أقل من 50% (يحتاج متابعة) 🔴"
+            score_display = f"{sc}%"
+        elif sc <= 75:
+            badge_class = "badge-blue"
+            badge_text = "50% - 75% (مستوى متوسط) 🔵"
+            score_display = f"{sc}%"
+        else:
+            badge_class = "badge-green"
+            badge_text = "76% - 100% (ممتاز ومتفوق) 🟢"
+            score_display = f"{sc}%"
 
-    student_report_html = f"""
-    <table class="header-table">
-        <tr>
-            <td style="text-align: right; width: 35%;">
-                <b>المملكة العربية السعودية</b><br>
-                <b>وزارة التعليم</b><br>
-                <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
-                <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
-            </td>
-            <td style="text-align: center; width: 30%;">
-                <h3 style="margin: 0; color: #1e3c72;">تقرير ولي الأمر لدرجات الإتقان</h3>
-                <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
-            </td>
-            <td style="text-align: left; width: 35%;">
-                <b>التاريخ:</b> 1447/1448 هـ<br>
-                <b>رقم السجل:</b> {st_info['id']}
-            </td>
-        </tr>
-    </table>
-
-    <div style="background: #fdfdfd; border: 1px solid #1e3c72; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-        <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-                <td style="padding: 8px;"><b>اسم الطالب:</b> {st_info['name']}</td>
-                <td style="padding: 8px;"><b>رقم الهوية:</b> {st_info['id']}</td>
-            </tr>
-            <tr>
-                <td style="padding: 8px;"><b>الصف الدراسي:</b> {st_info['grade']}</td>
-                <td style="padding: 8px;"><b>الفصل / الشعبة:</b> ({st_info['class']})</td>
-            </tr>
-            <tr>
-                <td style="padding: 8px;"><b>نسبة الإتقان الأسبوعية:</b> {score_display}</td>
-                <td style="padding: 8px;"><b>مستوى الطالب:</b> <span class="{badge_class}">{badge_text}</span></td>
-            </tr>
-        </table>
-    </div>
-
-    <div style="background: #eef2f5; border-right: 5px solid #1e3c72; padding: 15px; border-radius: 4px; margin-bottom: 25px;">
-        <h4 style="margin-top: 0; color: #1e3c72;">💬 الرسالة الموجهة لولي الأمر:</h4>
-        <p style="font-size: 15px; line-height: 1.6; margin: 0;">{msg}</p>
-    </div>
-
-    <table class="signatures">
-        <tr>
-            <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
-            <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
-            <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
-        </tr>
-    </table>
-    <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
-        تصميم وتطوير: <b>محمد سامي السعيد</b>
-    </div>
-    """
-    
-    render_printable_html_view(student_report_html, title=f"تقرير_{st_info['name']}")
-
-    elif print_type == "🎒 طباعة تقرير فصل / شعبة محددة":
-        st.markdown("#### 🎒 طباعة وتصدير تقرير شعبة / فصل محدد:")
-        col_g, col_c = st.columns(2)
-        with col_g:
-            gr_select = st.selectbox("اختر الصف الدراسي:", ["الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"], key="gr_sec")
-        with col_c:
-            cl_select = st.selectbox("اختر الفصل / الشعبة:", [1, 2, 3], key="cl_sec")
-            
-        df_class = df_reports[(df_reports["grade"] == gr_select) & (df_reports["class"] == cl_select)]
-        
-        class_rows_html = ""
-        for idx, r in df_class.iterrows():
-            sc = r["score"]
-            is_abs = r["is_absent"]
-            if is_abs == 1:
-                b_class = "badge-gray"
-                b_text = "غائب ⚪"
-                sc_str = "0% (غائب)"
-            elif sc is None or sc < 50:
-                b_class = "badge-red"
-                b_text = "أقل من 50% 🔴"
-                sc_str = f"{sc}%"
-            elif sc <= 75:
-                b_class = "badge-blue"
-                b_text = "50% - 75% 🔵"
-                sc_str = f"{sc}%"
-            else:
-                b_class = "badge-green"
-                b_text = "76% - 100% 🟢"
-                sc_str = f"{sc}%"
-                
-            msg_short = generate_parent_message(r["name"], sc, is_abs)
-            
-            class_rows_html += f"""
-            <tr>
-                <td>{r['id']}</td>
-                <td style="text-align: right; padding-right: 10px;"><b>{r['name']}</b></td>
-                <td><b>{sc_str}</b></td>
-                <td><span class="{b_class}">{b_text}</span></td>
-                <td style="text-align: right; font-size: 12px; padding: 6px;">{msg_short}</td>
-            </tr>
-            """
-
-        class_report_html = f"""
+        student_report_html = f"""
         <table class="header-table">
             <tr>
                 <td style="text-align: right; width: 35%;">
@@ -858,31 +779,37 @@ if print_type == "👤 طباعة تقرير طالب محدد":
                     <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
                 </td>
                 <td style="text-align: center; width: 30%;">
-                    <h3 style="margin: 0; color: #1e3c72;">تقرير شعبة {gr_select} - فصل ({cl_select})</h3>
+                    <h3 style="margin: 0; color: #1e3c72;">تقرير ولي الأمر لدرجات الإتقان</h3>
                     <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
                 </td>
                 <td style="text-align: left; width: 35%;">
-                    <b>الصف الدراسي:</b> {gr_select}<br>
-                    <b>الشعبة / الفصل:</b> ({cl_select})<br>
-                    <b>عدد الطلاب:</b> {len(df_class)} طالب
+                    <b>التاريخ:</b> 1447/1448 هـ<br>
+                    <b>رقم السجل:</b> {st_info['id']}
                 </td>
             </tr>
         </table>
 
-        <table class="data-table">
-            <thead>
+        <div style="background: #fdfdfd; border: 1px solid #1e3c72; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <table style="width: 100%; border-collapse: collapse;">
                 <tr>
-                    <th style="width: 18%;">رقم الهوية</th>
-                    <th style="width: 27%;">اسم الطالب</th>
-                    <th style="width: 12%;">النسبة %</th>
-                    <th style="width: 15%;">الحالة</th>
-                    <th style="width: 28%;">نص الرسالة الموجهة لولي الأمر</th>
+                    <td style="padding: 8px;"><b>اسم الطالب:</b> {st_info['name']}</td>
+                    <td style="padding: 8px;"><b>رقم الهوية:</b> {st_info['id']}</td>
                 </tr>
-            </thead>
-            <tbody>
-                {class_rows_html}
-            </tbody>
-        </table>
+                <tr>
+                    <td style="padding: 8px;"><b>الصف الدراسي:</b> {st_info['grade']}</td>
+                    <td style="padding: 8px;"><b>الفصل / الشعبة:</b> ({st_info['class']})</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px;"><b>نسبة الإتقان الأسبوعية:</b> {score_display}</td>
+                    <td style="padding: 8px;"><b>مستوى الطالب:</b> <span class="{badge_class}">{badge_text}</span></td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="background: #eef2f5; border-right: 5px solid #1e3c72; padding: 15px; border-radius: 4px; margin-bottom: 25px;">
+            <h4 style="margin-top: 0; color: #1e3c72;">💬 الرسالة الموجهة لولي الأمر:</h4>
+            <p style="font-size: 15px; line-height: 1.6; margin: 0;">{msg}</p>
+        </div>
 
         <table class="signatures">
             <tr>
@@ -896,8 +823,7 @@ if print_type == "👤 طباعة تقرير طالب محدد":
         </div>
         """
         
-        render_printable_html_view(class_report_html, title=f"تقرير_{gr_select}_فصل_{cl_select}")
-
+        render_printable_html_view(student_report_html, title=f"تقرير_{st_info['name']}")
     st.markdown("---")
     st.markdown("### 📞 إدارة ورصد أرقام جوالات أولياء الأمور (تحديث وحفظ):")
     
