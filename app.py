@@ -288,7 +288,7 @@ def send_mora_sms(phone, message, username="0560229124", password="@THA050863488
     except Exception as e:
         return False, f"خطأ في الاتصال بالخادم: {str(e)}"
 
-def send_mora_bulk_sms(students_list, username="0560229124", password="@THA0508634881", sender_name="AlThaghr", otp_code=""):
+def send_mora_bulk_sms(students_list, username="0560229124", password="THA@508634881", sender_name="AlThaghr", otp_code=""):
     """
     دالة الإرسال الجماعي لخيار Bulk SMS عبر منصة Mora
     """
