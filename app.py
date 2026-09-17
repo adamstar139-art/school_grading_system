@@ -6,10 +6,11 @@ import urllib.parse
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 import io
 import streamlit.components.v1 as components
+import requests
 
-# ==============================================================================
-# 1. تهيئة قاعدة البيانات والبيانات المعتمدة للطلاب
-# ==============================================================================
+### ==============================================================================
+### 1. تهيئة قاعدة البيانات والبيانات المعتمدة للطلاب
+### ==============================================================================
 DB_NAME = "school_grading_system.db"
 
 STUDENTS_INIT = [
@@ -128,7 +129,7 @@ STUDENTS_INIT = [
     {"id": "1167371093", "name": "يوسف عايد عواد البلوي", "grade": "الثاني المتوسط", "class": 3, "phone": "966531066289"},
 
     # الصف الثالث المتوسط - فصل 1
-    {"id": "1158966166", "name": "أصيل ناصر بن محمد مذكور", "grade": "الثالث المتوسط", "class": 1, "phone": "966552149044"},
+    {"id": "1158966166", "name": "أاصيل ناصر بن محمد مذكور", "grade": "الثالث المتوسط", "class": 1, "phone": "966552149044"},
     {"id": "1162308223", "name": "خالد محمد مسدف معافا", "grade": "الثالث المتوسط", "class": 1, "phone": "966552680201"},
     {"id": "1161109093", "name": "راكان بن عبدالله بن سالم اليافعي", "grade": "الثالث المتوسط", "class": 1, "phone": "966504234219"},
     {"id": "1160805899", "name": "زياد احمد بن علي اللحيد", "grade": "الثالث المتوسط", "class": 1, "phone": "966504432362"},
@@ -237,10 +238,9 @@ def init_db():
 
 init_db()
 
-# ==============================================================================
-# 2. الدوال المساعدة وصياغة الرسائل
-# ==============================================================================
-
+### ==============================================================================
+### 2. الدوال المساعدة وصياغة الرسائل + الربط مع Mora SMS API
+### ==============================================================================
 def create_whatsapp_url(phone, text):
     phone_clean = str(phone).strip().replace("+", "").replace(" ", "").replace("-", "")
     if phone_clean.startswith("05"):
@@ -250,13 +250,69 @@ def create_whatsapp_url(phone, text):
     encoded_text = urllib.parse.quote(text)
     return f"https://api.whatsapp.com/send?phone={phone_clean}&text={encoded_text}"
 
+def send_mora_sms(phone, message, username="0560229124", password="@THA0508634881", sender_name="AlThaghr", otp_code=""):
+    """
+    دالة إرسال الرسائل النصية القصيرة عبر بوابة Mora SMS (mora-sa.com)
+    تتحكم في تهيئة أرقام الجوال بالمفتاح الدولي وإرسال الطلب لـ API منصة مورا.
+    """
+    phone_clean = str(phone).strip().replace("+", "").replace(" ", "").replace("-", "")
+    if phone_clean.startswith("05"):
+        phone_clean = "966" + phone_clean[1:]
+    elif phone_clean.startswith("5"):
+        phone_clean = "966" + phone_clean
+
+    # رابط API الخاص بـ Mora SMS
+    url = "https://mora-sa.com/api/v1/sendsms"
+    
+    payload = {
+        "username": username,
+        "password": password,
+        "sender": sender_name,
+        "numbers": phone_clean,
+        "message": message,
+        "otp": otp_code if otp_code else ""
+    }
+    
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+        "Accept": "application/json"
+    }
+    
+    try:
+        response = requests.post(url, data=payload, headers=headers, timeout=10)
+        # التحقق من استجابة النظام (سواء 200 OK أو كود الاستجابة الناجح من مورا)
+        if response.status_code == 200 or "success" in response.text.lower() or "sent" in response.text.lower():
+            return True, f"تم الإرسال بنجاح إلى الرقم {phone_clean}"
+        else:
+            return False, f"رمز الاستجابة: {response.status_code} - {response.text}"
+    except Exception as e:
+        return False, f"خطأ في الاتصال بالخادم: {str(e)}"
+
+def send_mora_bulk_sms(students_list, username="0560229124", password="@THA0508634881", sender_name="AlThaghr", otp_code=""):
+    """
+    دالة الإرسال الجماعي لخيار Bulk SMS عبر منصة Mora
+    """
+    success_count = 0
+    fail_count = 0
+    details = []
+    
+    for item in students_list:
+        status, msg = send_mora_sms(item['phone'], item['message'], username, password, sender_name, otp_code)
+        if status:
+            success_count += 1
+        else:
+            fail_count += 1
+        details.append((item['name'], item['phone'], status, msg))
+        
+    return success_count, fail_count, details
+
 def generate_parent_message(student_name, score, is_absent):
     if is_absent:
         return (
             f"المكرم ولي أمر الطالب/ {student_name}، نود التنبيه على غياب الطالب هذا الأسبوع، "
             f"ونحثكم على متابعة الانتظام وحضور الاختبارات لتجنب حسم الدرجات والتأثير على مستواه التحصيلي: متوسطة الثغر النموذجية الأهلية."
         )
-    
+
     sc_str = f"{score}%" if score is not None else "أقل من 50%"
 
     if score is None or score < 50:
@@ -280,88 +336,38 @@ def generate_parent_message(student_name, score, is_absent):
 
 def render_printable_html_view(html_content, title="طباعة التقرير"):
     full_html = f'''<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-<meta charset="utf-8">
-<title>{title}</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
-html, body {{
-    font-family: 'Tajawal', sans-serif !important;
-    direction: rtl !important;
-    text-align: right !important;
-    background-color: #f8fafc;
-    margin: 0;
-    padding: 15px;
-}}
-.print-container {{
-    background: white;
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    max-width: 900px;
-    margin: 0 auto;
-}}
-.print-btn {{
-    background-color: #1e3c72;
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    margin-bottom: 20px;
-    width: 100%;
-}}
-.header-table {{
-    width: 100%;
-    margin-bottom: 25px;
-    border-bottom: 2px solid #1e3c72;
-    padding-bottom: 15px;
-}}
-.data-table {{
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 25px;
-}}
-.data-table th, .data-table td {{
-    border: 1px solid #cbd5e1;
-    padding: 10px;
-    text-align: center;
-}}
-.data-table th {{
-    background-color: #1e3c72;
-    color: white;
-}}
-.signatures {{
-    width: 100%;
-    margin-top: 30px;
-    text-align: center;
-}}
-.badge-green {{ background-color: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
-.badge-blue {{ background-color: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
-.badge-red {{ background-color: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
-.badge-gray {{ background-color: #f3f4f6; color: #374151; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
-@media print {{
-    .no-print {{ display: none !important; }}
-    body {{ background: white; padding: 0; }}
-    .print-container {{ box-shadow: none; padding: 0; }}
-}}
-</style>
-</head>
-<body>
-<div class="print-container">
-    <button class="print-btn no-print" onclick="window.print()">🖨️ اضغط هنا للطباعة المباشرة / التصدير كـ PDF</button>
-    {html_content}
-</div>
-</body>
-</html>'''
-    components.html(full_html, height=650, scrolling=True)
+    <html dir="rtl" lang="ar">
+    <head>
+        <meta charset="UTF-8">
+        <title>{title}</title>
+        <style>
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 20px; }}
+            .printable-card {{ background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 900px; margin: 0 auto; border: 1px solid #e2e8f0; }}
+            .header-table {{ width: 100%; margin-bottom: 25px; border-bottom: 2px solid #1e3c72; padding-bottom: 15px; }}
+            .data-table {{ width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }}
+            .data-table th {{ background-color: #1e3c72; color: white; padding: 10px; border: 1px solid #1e3c72; text-align: center; }}
+            .data-table td {{ padding: 10px; border: 1px solid #cbd5e1; text-align: center; }}
+            .signatures {{ width: 100%; margin-top: 40px; text-align: center; font-size: 14px; border-top: 1px dashed #cbd5e1; padding-top: 20px; }}
+            .signatures td {{ padding: 15px; width: 33.33%; }}
+            .badge-red {{ background-color: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
+            .badge-blue {{ background-color: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
+            .badge-green {{ background-color: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
+            .badge-gray {{ background-color: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
+            @media print {{ body {{ background: white; padding: 0; }} .printable-card {{ box-shadow: none; border: none; }} }}
+        </style>
+    </head>
+    <body>
+        <div class="printable-card">
+            {html_content}
+        </div>
+    </body>
+    </html>
+    '''
+    components.html(full_html, height=600, scrolling=True)
 
-# ==============================================================================
-# 3. واجهة برنامج Streamlit
-# ==============================================================================
+### ==============================================================================
+### 3. واجهة برنامج Streamlit
+### ==============================================================================
 st.set_page_config(
     page_title="برنامج رصد الدرجات - متوسطة الثغر النموذجية الأهلية",
     page_icon="🏫",
@@ -369,64 +375,48 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown('''
+st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
-html, body, [class*="css"], .stMarkdown, .stText, div[data-baseweb="input"], div[data-baseweb="select"], .stNumberInput input {
-    font-family: 'Tajawal', sans-serif !important;
-    direction: rtl !important;
-    text-align: right !important;
-}
-.stApp {
-    background-color: #f8fafc;
-}
-.header-box {
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-    color: white;
-    padding: 22px;
-    border-radius: 14px;
-    text-align: center !important;
-    margin-bottom: 25px;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.12);
-}
-.student-name-box {
-    text-align: right !important;
-    direction: rtl !important;
-    font-weight: 700;
-    font-size: 16px;
-    color: #1e3c72;
-    padding: 6px 10px;
-    background-color: #ffffff;
-    border-right: 4px solid #2a5298;
-    border-radius: 6px;
-    margin-bottom: 8px;
-}
-.stDataFrame table, .stDataFrame td, .stDataFrame th {
-    text-align: right !important;
-    direction: rtl !important;
-}
-div[data-testid="stForm"] {
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    padding: 20px;
-    background-color: #ffffff;
-}
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+    html, body, [class*="css"]  {
+        font-family: 'Cairo', sans-serif;
+        direction: rtl;
+        text-align: right;
+    }
+    .student-name-box {
+        background-color: #f8fafc;
+        border-right: 4px solid #1e3c72;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 6px;
+        font-weight: bold;
+    }
 </style>
-''', unsafe_allow_html=True)
-
-st.markdown('''
-<div class="header-box">
-    <h2 style="margin:0;">🏫 نظام رصد الدرجات والتواصل مع أولياء الأمور</h2>
-    <p style="margin:5px 0 0 0; font-size:16px;">متوسطة الثغر النموذجية الأهلية (بنين) بالرياض</p>
-</div>
-''', unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 st.sidebar.title("📌 القائمة الرئيسية")
+
+# قسم إعدادات منصة Mora SMS في القائمة الجانبية
+st.sidebar.markdown("---")
+st.sidebar.subheader("📱 إعدادات Mora SMS")
+mora_user = st.sidebar.text_input("اسم المستخدم / الرقم:", value="0560229124", key="mora_u")
+mora_pass = st.sidebar.text_input("كلمة المرور:", value="@THA0508634881", type="password", key="mora_p")
+mora_sender = st.sidebar.text_input("اسم المرسل المعتمد:", value="AlThaghr", key="mora_s")
+mora_otp = st.sidebar.text_input("كود التحقق / OTP (إذا تم طلبه):", value="", help="إذا تم إرسال كود تحقق لهاتفك عند الإرسال، أدخله هنا", key="mora_otp_input")
+
+if mora_otp:
+    st.sidebar.success(f"🔑 تم إدخال رمز التحقق: {mora_otp}")
+
+st.sidebar.markdown("---")
 page = st.sidebar.radio("اختر الصفحة:", ["📝 صفحة الرصد", "🏫 إدارة المدرسة وتقارير أولياء الأمور"])
 
-# ==============================================================================
-# الصفحة الأولى: صفحة الرصد (RECORDING SHEET)
-# ==============================================================================
+### ==============================================================================
+### الصفحة الأولى: صفحة الرصد (RECORDING SHEET)
+### ==============================================================================
 if page == "📝 صفحة الرصد":
     st.subheader("📝 صفحة رصد درجات الإتقان الأسبوعية")
     
@@ -626,9 +616,9 @@ if page == "📝 صفحة الرصد":
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-# ==============================================================================
-# الصفحة الثانية: إدارة المدرسة وتقارير أولياء الأمور (ADMIN & PARENT REPORTS)
-# ==============================================================================
+### ==============================================================================
+### الصفحة الثانية: إدارة المدرسة وتقارير أولياء الأمور (ADMIN & PARENT REPORTS)
+### ==============================================================================
 elif page == "🏫 إدارة المدرسة وتقارير أولياء الأمور":
     st.subheader("🏫 إدارة المدرسة وإرسال وتقارير أولياء الأمور")
     
@@ -686,12 +676,12 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
 
     st.markdown("---")
 
-    st.markdown("##### 🟢 خيارات إرسال الرسائل عبر الواتساب (WhatsApp):")
-    col_wa1, col_wa2 = st.columns(2)
-    with col_wa1:
-        st.success("✅ يتم توليد رابط واتساب مباشر لكل طالب يتضمن رقم جوال ولي الأمر ونص الرسالة المخصص تلقائياً.")
-    with col_wa2:
-        st.info("💡 اضغط على زر **'إرسال الرسالة الآن عبر الواتساب'** الأخضر أمام كل طالب لفتح محادثة الواتساب فوراً مع الرسالة المجهزة.")
+    st.markdown("##### 📱 قناتا الإرسال المتاحتان لولي الأمر (WhatsApp + Mora SMS):")
+    col_info1, col_info2 = st.columns(2)
+    with col_info1:
+        st.success("💬 **واتساب (WhatsApp):** رابط مباشر يفتح تطبيق الواتساب مع النص المجهز مسبقاً بنقرة زر.")
+    with col_info2:
+        st.info("📱 **Mora SMS (مورا):** إرسال مباشر عبر البوابة المدرسية المعتمدة (mora-sa.com) مع دعم الإرسال الفردي والجماعي.")
 
     st.markdown("### 📋 تفاصيل الرسائل النصية الموجهة حسب الفئات:")
 
@@ -706,20 +696,48 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         if not cat_list:
             st.info(f"لا يوجد طلاب في {cat_name} بهذا الأسبوع.")
         else:
-            st.markdown(f"##### 📲 قائمة رسائل {cat_name} الموجهة لولي الأمر عبر الواتساب:")
+            st.markdown(f"##### 📲 قائمة رسائل {cat_name} الموجهة لولي الأمر:")
+            
+            # خيار الإرسال الجماعي Bulk SMS عبر Mora
+            with st.expander(f"🚀 إرسال جماعي (Bulk SMS عبر Mora) لجميع طلاب {cat_name} ({len(cat_list)} طالب)"):
+                st.write(f"سيتم إرسال الرسائل النصية القصيرة تلقائياً عبر منصة Mora إلى جميع أرقام أولياء أمور {cat_name}.")
+                if st.button(f"⚡ إرسال SMS جماعي لجميع طلاب {cat_name}", key=f"bulk_sms_{cat_name}"):
+                    with st.spinner("جاري الإرسال الجماعي عبر Mora SMS..."):
+                        succ, fail, details = send_mora_bulk_sms(
+                            cat_list, username=mora_user, password=mora_pass, sender_name=mora_sender, otp_code=mora_otp
+                        )
+                        st.success(f"✅ اكتملت عملية الإرسال! النجاح: {succ} | الفشل: {fail}")
+
+            st.markdown("---")
+
             for item in cat_list:
                 wa_link = create_whatsapp_url(item['phone'], item['message'])
                 with st.expander(f"👤 {item['name']} ({item['grade']} - فصل {item['class']}) | جوال ولي الأمر: {item['phone']}"):
                     st.write(f"**رقم الهوية:** {item['id']}")
                     st.write(f"**النسبة المئوية / الدرجة:** {item['score']}%" if item['is_absent'] == 0 else "**الحالة:** غائب ⚪")
                     st.info(f"💬 **نص الرسالة الموجهة:**\n\n{item['message']}")
-                    st.markdown(f'''
-                    <a href="{wa_link}" target="_blank" style="text-decoration:none;">
-                        <div style="background-color:#25D366; color:white; padding:12px 18px; border-radius:8px; text-align:center; font-weight:bold; font-size:15px; margin-top:8px; display:block;">
-                            💬 إرسال الرسالة الآن عبر الواتساب (WhatsApp) إلى ولي الأمر ({item['phone']})
-                        </div>
-                    </a>
-                    ''', unsafe_allow_html=True)
+                    
+                    btn_col1, btn_col2 = st.columns(2)
+                    
+                    with btn_col1:
+                        st.markdown(f'''
+                        <a href="{wa_link}" target="_blank" style="text-decoration:none;">
+                            <div style="background-color:#25D366; color:white; padding:10px 14px; border-radius:6px; text-align:center; font-weight:bold; font-size:14px; margin-top:5px; display:block;">
+                                💬 إرسال عبر الواتساب (WhatsApp)
+                            </div>
+                        </a>
+                        ''', unsafe_allow_html=True)
+                        
+                    with btn_col2:
+                        if st.button(f"📱 إرسال SMS (Mora)", key=f"single_sms_{item['id']}"):
+                            with st.spinner("جاري الإرسال..."):
+                                status, msg_resp = send_mora_sms(
+                                    item['phone'], item['message'], username=mora_user, password=mora_pass, sender_name=mora_sender, otp_code=mora_otp
+                                )
+                                if status:
+                                    st.success(f"✅ {msg_resp}")
+                                else:
+                                    st.error(f"❌ تعذر الإرسال: {msg_resp}")
 
     with tab1: show_category_tab(cat_red, "فئة أقل من 50%")
     with tab2: show_category_tab(cat_blue, "فئة 50% - 75%")
@@ -744,20 +762,31 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         selected_student_name = st.selectbox("اختر اسم الطالب:", df_reports["name"].tolist())
         st_info = df_reports[df_reports["name"] == selected_student_name].iloc[0]
 
-        # 1. احتساب الدرجة وحالة الغياب وتوليد نص الرسالة أولاً لتجنب NameError
         sc = st_info["score"]
         is_abs = st_info["is_absent"]
         msg = generate_parent_message(st_info["name"], sc, is_abs)
 
-        # 2. توليد رابط الواتساب بعد التأكد من وجود المتغير msg
         wa_indiv_url = create_whatsapp_url(st_info['phone'], msg)
-        st.markdown(f'''
-        <a href="{wa_indiv_url}" target="_blank" style="text-decoration:none;">
-            <div style="background-color:#25D366; color:white; padding:14px 20px; border-radius:8px; text-align:center; font-weight:bold; font-size:16px; margin-bottom:15px; display:block;">
-                💬 إرسال التقرير والرسالة فوراً إلى ولي الأمر عبر الواتساب (WhatsApp) -> {st_info['phone']}
-            </div>
-        </a>
-        ''', unsafe_allow_html=True)
+        
+        send_col1, send_col2 = st.columns(2)
+        with send_col1:
+            st.markdown(f'''
+            <a href="{wa_indiv_url}" target="_blank" style="text-decoration:none;">
+                <div style="background-color:#25D366; color:white; padding:12px 18px; border-radius:8px; text-align:center; font-weight:bold; font-size:15px; display:block;">
+                    💬 إرسال التقرير عبر الواتساب -> {st_info['phone']}
+                </div>
+            </a>
+            ''', unsafe_allow_html=True)
+        with send_col2:
+            if st.button(f"📱 إرسال التقرير والرسالة عبر Mora SMS", key=f"indiv_mora_{st_info['id']}"):
+                with st.spinner("جاري الإرسال عبر Mora SMS..."):
+                    status, msg_resp = send_mora_sms(
+                        st_info['phone'], msg, username=mora_user, password=mora_pass, sender_name=mora_sender, otp_code=mora_otp
+                    )
+                    if status:
+                        st.success(f"✅ {msg_resp}")
+                    else:
+                        st.error(f"❌ تعذر الإرسال: {msg_resp}")
 
         if is_abs == 1:
             badge_class = "badge-gray"
@@ -1056,3 +1085,4 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         <p style="color: #666; font-size: 14px; margin-top: 10px;"><b>تصميم وتطوير:</b> محمد سامي السعيد</p>
     </div>
     ''', unsafe_allow_html=True)
+
