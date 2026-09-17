@@ -1,31 +1,16 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 import io
-
-# محاولة استيراد المكتبات الاختيارية لحمايتها عند الاستضافة على المنصات
-try:
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    HAS_OPENPYXL = True
-except ImportError:
-    HAS_OPENPYXL = False
-
-try:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib import colors
-    HAS_REPORTLAB = True
-except ImportError:
-    HAS_REPORTLAB = False
+import streamlit.components.v1 as components
 
 # ==============================================================================
 # 1. تهيئة قاعدة البيانات والبيانات المعتمدة للطلاب
 # ==============================================================================
 DB_NAME = "school_grading_system.db"
 
-# قائمة طلاب متوسطة الثغر النموذجية الأهلية المسجلين بالصفوف والفصول
 STUDENTS_INIT = [
     # الصف الأول المتوسط - فصل 1
     {"id": "1167628468", "name": "ابراهيم بن محمد بن علي الوهيبي", "grade": "الأول المتوسط", "class": 1, "phone": "966504158122"},
@@ -142,7 +127,7 @@ STUDENTS_INIT = [
     {"id": "1167371093", "name": "يوسف عايد عواد البلوي", "grade": "الثاني المتوسط", "class": 3, "phone": "966531066289"},
 
     # الصف الثالث المتوسط - فصل 1
-    {"id": "1158966166", "name": "أاصيل ناصر بن محمد مذكور", "grade": "الثالث المتوسط", "class": 1, "phone": "966552149044"},
+    {"id": "1158966166", "name": "أصيل ناصر بن محمد مذكور", "grade": "الثالث المتوسط", "class": 1, "phone": "966552149044"},
     {"id": "1162308223", "name": "خالد محمد مسدف معافا", "grade": "الثالث المتوسط", "class": 1, "phone": "966552680201"},
     {"id": "1161109093", "name": "راكان بن عبدالله بن سالم اليافعي", "grade": "الثالث المتوسط", "class": 1, "phone": "966504234219"},
     {"id": "1160805899", "name": "زياد احمد بن علي اللحيد", "grade": "الثالث المتوسط", "class": 1, "phone": "966504432362"},
@@ -259,15 +244,115 @@ def generate_parent_message(student_name, score, is_absent):
     if is_absent:
         return f"المكرم ولي أمر الطالب/ {student_name}، نود التنبيه على غياب الطالب هذا الأسبوع، ونحثكم على متابعة انتظام وحضور الاختبارات لتجنب حسم الدرجات والتأثير على مستواه الأكاديمي."
     elif score is None or score < 50:
-        sc_str = f"{score}%" if score is not None else "0%"
+        sc_str = f"{score}%" if score is not None else "أقل من 50%"
         return f"المكرم ولي أمر الطالب/ {student_name}، نفيدكم بأن نسبة إتقان الطالب هذا الأسبوع هي ({sc_str}) وهي أقل من 50%. نأمل منكم المتابعة والعمل على رفع مستواه الدراسي."
     elif score <= 75:
         return f"المكرم ولي أمر الطالب/ {student_name}، نشيد بجهود الطالب ونسبة إتقانه ({score}%)، ونحثه على بذل المزيد من الجهد للوصول إلى مستوى أفضل والتميز."
     else:
         return f"المكرم ولي أمر الطالب/ {student_name}، نتقدم بخالص الشكر والتقدير لكم وللطالب على الاهتمام والتفوق بنسبة إتقان ممتازة ({score}%)، مع أطيب دعواتنا له بالتوفيق والاستمرارية."
 
+# دالة توليد صفحة طباعة HTML تفاعلية للطباعة المباشرة من المتصفح
+def render_printable_html_view(html_content, title="طباعة التقرير"):
+    full_html = f'''
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+        <meta charset="utf-8">
+        <title>{title}</title>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+            body {{
+                font-family: 'Tajawal', sans-serif;
+                direction: rtl;
+                text-align: right;
+                background-color: #ffffff;
+                color: #222;
+                padding: 15px;
+                margin: 0;
+            }}
+            .print-container {{
+                max-width: 900px;
+                margin: 0 auto;
+                background: #fff;
+                padding: 25px;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+            }}
+            .print-btn {{
+                background-color: #1e3c72;
+                color: white;
+                padding: 12px 25px;
+                font-size: 16px;
+                font-weight: bold;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                margin-bottom: 20px;
+                display: block;
+                width: 100%;
+            }}
+            .print-btn:hover {{
+                background-color: #2a5298;
+            }}
+            .header-table {{
+                width: 100%;
+                margin-bottom: 20px;
+                border-bottom: 2px solid #1e3c72;
+                padding-bottom: 10px;
+            }}
+            .header-table td {{
+                vertical-align: middle;
+            }}
+            table.data-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 15px;
+                margin-bottom: 20px;
+            }}
+            table.data-table th, table.data-table td {{
+                border: 1px solid #333;
+                padding: 8px 10px;
+                text-align: center;
+                font-size: 14px;
+            }}
+            table.data-table th {{
+                background-color: #1e3c72;
+                color: white;
+            }}
+            .signatures {{
+                margin-top: 40px;
+                width: 100%;
+                text-align: center;
+                border-top: 1px solid #ccc;
+                padding-top: 15px;
+            }}
+            .signatures td {{
+                padding: 10px;
+                font-weight: bold;
+            }}
+            .badge-red {{ background-color: #FFEBEE; color: #C62828; font-weight: bold; padding: 4px 8px; border-radius: 4px; }}
+            .badge-blue {{ background-color: #E3F2FD; color: #1565C0; font-weight: bold; padding: 4px 8px; border-radius: 4px; }}
+            .badge-green {{ background-color: #E8F5E9; color: #2E7D32; font-weight: bold; padding: 4px 8px; border-radius: 4px; }}
+            .badge-gray {{ background-color: #F5F5F5; color: #616161; font-weight: bold; padding: 4px 8px; border-radius: 4px; }}
+            @media print {{
+                .no-print {{ display: none !important; }}
+                body {{ padding: 0; }}
+                .print-container {{ border: none; padding: 0; }}
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="print-container">
+            <button class="print-btn no-print" onclick="window.print()">🖨️ اضغط هنا للطباعة المباشرة / التصدير كـ PDF</button>
+            {html_content}
+        </div>
+    </body>
+    </html>
+    '''
+    components.html(full_html, height=650, scrolling=True)
+
 # ==============================================================================
-# 3. واجهة برنامج Streamlit وتحديد التنسيق العربي RTL
+# 3. واجهة برنامج Streamlit
 # ==============================================================================
 st.set_page_config(
     page_title="برنامج رصد الدرجات - متوسطة الثغر النموذجية الأهلية",
@@ -299,10 +384,6 @@ st.markdown('''
 </style>
 ''', unsafe_allow_html=True)
 
-if not HAS_REPORTLAB or not HAS_OPENPYXL:
-    st.info("💡 تنبيه الاستضافة: لتفعيل كافة ميزات تصدير ملفات Excel و PDF على المنصة، يرجى التأكد من إضافة ملف `requirements.txt` في مجلد مشروعك الأساسي.")
-
-# الهيدر الرئيسي للمدرسة
 st.markdown('''
 <div class="header-box">
     <h2>🏫 المملكة العربية السعودية - وزارة التعليم</h2>
@@ -311,7 +392,6 @@ st.markdown('''
 </div>
 ''', unsafe_allow_html=True)
 
-# شريط التنقل الجانبي
 st.sidebar.title("📌 القائمة الرئيسية")
 page = st.sidebar.radio("اختر الصفحة:", ["📝 صفحة الرصد", "🏫 إدارة المدرسة وتقارير أولياء الأمور"])
 
@@ -351,68 +431,30 @@ if page == "📝 صفحة الرصد":
         st.info(f"📊 عدد الطلاب في {grade} - فصل ({class_num}): **{len(df_students)} طالب** | {term} - {week}")
         
         with st.form("recording_form"):
-            st.markdown("##### 📥 جدول رصد الدرجات والنسب المئوية للطلاب:")
-            st.caption("ملاحظة: تظهر الدرجة الافتراضية (0) أمام كل طالب، وعند اختيار 'غائب' تصفر البيانات وتلغى الدرجة.")
-            
-            # عناوين الأعمدة في الجدول
-            hdr1, hdr2, hdr3, hdr4 = st.columns([3.5, 2, 2, 1.5])
-            hdr1.markdown("**اسم الطالب**")
-            hdr2.markdown("**درجة الإتقان (100)**")
-            hdr3.markdown("**النسبة المئوية (%)**")
-            hdr4.markdown("**خيار غائب**")
-            st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
+            st.markdown("##### 📥 أدخل/عدّل درجات الطلاب وحالة الغياب:")
             
             updated_data = []
             for idx, row in df_students.iterrows():
-                # logic for default score: 0 unless previously recorded in DB
-                is_db_abs = bool(row["is_absent"]) if pd.notnull(row["is_absent"]) else False
-                if is_db_abs:
-                    curr_score = 0.0
-                    curr_abs = True
-                else:
-                    curr_score = float(row["score"]) if (pd.notnull(row["score"]) and row["score"] is not None) else 0.0
-                    curr_abs = False
-
-                col_name, col_score, col_pct, col_absent = st.columns([3.5, 2, 2, 1.5])
-                
+                col_name, col_score, col_absent = st.columns([3, 2, 1])
                 with col_name:
-                    st.write(f"**{idx+1}. {row['name']}**")
+                    st.write(f"**{idx+1}. {row['name']}** (`{row['id']}`)")
                 with col_score:
-                    sc = st.number_input(
-                        label=f"sc_lbl_{row['id']}",
-                        min_value=0.0,
-                        max_value=100.0,
-                        value=curr_score,
-                        step=1.0,
-                        key=f"sc_{row['id']}",
-                        label_visibility="collapsed"
-                    )
+                    # القيمة الافتراضية عند أول رصد تكون صفر
+                    curr_score = float(row["score"]) if (pd.notnull(row["score"]) and row["score"] is not None) else 0.0
+                    sc = st.number_input(f"الدرجة (100)", min_value=0.0, max_value=100.0, value=curr_score, step=1.0, key=f"sc_{row['id']}")
                 with col_absent:
+                    curr_abs = bool(row["is_absent"]) if pd.notnull(row["is_absent"]) else False
                     is_abs = st.checkbox("غائب ⚪", value=curr_abs, key=f"abs_{row['id']}")
                 
-                # Zero out data if absent is selected
-                if is_abs:
-                    final_score = 0.0
-                    pct_str = "0%"
-                else:
-                    final_score = sc
-                    pct_str = f"{final_score:.0f}%" if final_score.is_integer() else f"{final_score}%"
-
-                with col_pct:
-                    if is_abs:
-                        st.markdown("<span style='color: #777; font-weight: bold;'>0% (غائب)</span>", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"**{pct_str}**")
-
+                # عند اختيار غائب تُصفّر درجة الطالب وتصبح 0
+                final_score = 0.0 if is_abs else sc
                 updated_data.append({
                     "student_id": row["id"],
                     "name": row["name"],
                     "score": final_score,
-                    "is_absent": 1 if is_abs else 0,
-                    "pct_display": pct_str
+                    "is_absent": 1 if is_abs else 0
                 })
             
-            st.markdown("<br>", unsafe_allow_html=True)
             save_btn = st.form_submit_button("💾 حفظ البيانات والتحديث")
             
         if save_btn:
@@ -428,7 +470,7 @@ if page == "📝 صفحة الرصد":
                 """, (item["student_id"], term, week, item["score"], item["is_absent"]))
             conn.commit()
             conn.close()
-            st.success("✅ تم حفظ البيانات في قاعدة البيانات بنجاح!")
+            st.success("✅ تم حفظ البيانات وتحديث جدول الرصد وقاعدة البيانات بنجاح!")
             st.rerun()
 
         st.markdown("### 📊 جدول نتائج الرصد المنسق بالتلوين الشرطي:")
@@ -437,25 +479,23 @@ if page == "📝 صفحة الرصد":
         for item in updated_data:
             sc = item["score"]
             is_abs = item["is_absent"]
-            
-            if is_abs:
-                cat = "غائب ⚪ (0%)"
-                pct = "0%"
-                sc_disp = 0
+            if is_abs == 1:
+                cat = "غائب ⚪"
+                pct = "0% (غائب)"
+            elif sc < 50:
+                cat = "أقل من 50% (ضعيف) 🔴"
+                pct = f"{sc}%"
+            elif sc <= 75:
+                cat = "50% - 75% (متوسط) 🔵"
+                pct = f"{sc}%"
             else:
-                pct = item["pct_display"]
-                sc_disp = sc
-                if sc < 50:
-                    cat = "أقل من 50% (ضعيف) 🔴"
-                elif sc <= 75:
-                    cat = "50% - 75% (متوسط) 🔵"
-                else:
-                    cat = "76% - 100% (ممتاز) 🟢"
+                cat = "76% - 100% (ممتاز) 🟢"
+                pct = f"{sc}%"
                 
             table_rows.append({
                 "اسم الطالب": item["name"],
                 "رقم الهوية": item["student_id"],
-                "درجة الإتقان / 100": sc_disp,
+                "درجة الإتقان / 100": sc if is_abs == 0 else 0.0,
                 "النسبة المئوية": pct,
                 "الفئة / الحالة": cat
             })
@@ -464,80 +504,107 @@ if page == "📝 صفحة الرصد":
         st.dataframe(df_display, use_container_width=True)
 
         st.markdown("---")
-        st.markdown("### 📥 تصدير وطباعة كشوف الدرجات:")
+        st.markdown("### 🖨️ طباعة وتصدير كشوف الرصد:")
         
-        col_exp1, col_exp2 = st.columns(2)
+        tab_exp1, tab_exp2 = st.tabs(["🖨️ معاينة وطباعة كشف مفرغ (HTML / PDF)", "📊 تصدير إلى Excel"])
         
-        # تصدير ملف Excel
-        with col_exp1:
-            if HAS_OPENPYXL:
-                wb = openpyxl.Workbook()
-                ws = wb.active
-                ws.title = "كشف_الرصد"
-                ws.sheet_view.rightToLeft = True
+        with tab_exp1:
+            st.markdown("#### 📝 معاينة وطباعة كشف رصد مفرغ للرصد اليدوي:")
+            
+            # بناء كشف رصد مفرغ للطباعة
+            rows_html = ""
+            for i, st_item in enumerate(updated_data, 1):
+                rows_html += f"""
+                <tr>
+                    <td>{i}</td>
+                    <td>{st_item['student_id']}</td>
+                    <td style="text-align: right; padding-right: 15px;">{st_item['name']}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                """
                 
-                headers = ["م", "رقم الهوية", "اسم الطالب", "درجة الإتقان / 100", "النسبة المئوية", "الحالة"]
-                ws.append(headers)
-                
-                for i, r in enumerate(table_rows, 1):
-                    ws.append([i, r["رقم الهوية"], r["اسم الطالب"], r["درجة الإتقان / 100"], r["النسبة المئوية"], r["الفئة / الحالة"]])
-                    
-                excel_io = io.BytesIO()
-                wb.save(excel_io)
-                excel_io.seek(0)
-                
-                st.download_button(
-                    label="📊 تصدير كشف الدرجات (Excel)",
-                    data=excel_io,
-                    file_name=f"كشف_درجات_{grade}_{class_num}_{week}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            else:
-                st.warning("تصدير Excel يتطلب تثبيت مكتبة `openpyxl` في `requirements.txt`")
+            blank_sheet_html = f"""
+            <table class="header-table">
+                <tr>
+                    <td style="text-align: right; width: 35%;">
+                        <b>المملكة العربية السعودية</b><br>
+                        <b>وزارة التعليم</b><br>
+                        <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
+                        <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
+                    </td>
+                    <td style="text-align: center; width: 30%;">
+                        <h3 style="margin: 0; color: #1e3c72;">كشف رصد مفرغ للرصد اليدوي</h3>
+                        <p style="margin: 5px 0;">درجات الإتقان الأسبوعية</p>
+                    </td>
+                    <td style="text-align: left; width: 35%;">
+                        <b>الصف الدراسي:</b> {grade}<br>
+                        <b>الفصل / الشعبة:</b> ({class_num})<br>
+                        <b>الفصل الدراسي:</b> {term}<br>
+                        <b>الأسبوع:</b> {week}
+                    </td>
+                </tr>
+            </table>
 
-        # تصدير كشف مفرغ PDF
-        with col_exp2:
-            if HAS_REPORTLAB:
-                pdf_io = io.BytesIO()
-                doc = SimpleDocTemplate(pdf_io, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
-                elements = []
-                styles = getSampleStyleSheet()
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">م</th>
+                        <th style="width: 20%;">رقم الهوية</th>
+                        <th style="width: 40%;">اسم الطالب</th>
+                        <th style="width: 12%;">درجة الإتقان / 100</th>
+                        <th style="width: 10%;">النسبة %</th>
+                        <th style="width: 13%;">ملاحظات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                </tbody>
+            </table>
+
+            <table class="signatures">
+                <tr>
+                    <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
+                    <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
+                    <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
+                </tr>
+            </table>
+            <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
+                تصميم وتطوير: <b>محمد سامي السعيد</b>
+            </div>
+            """
+            
+            render_printable_html_view(blank_sheet_html, title="كشف_رصد_مفرغ")
+
+        with tab_exp2:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "كشف_الرصد"
+            ws.views.sheetView[0].rightToLeft = True
+            
+            headers = ["م", "رقم الهوية", "اسم الطالب", "الدرجة / 100", "النسبة المئوية", "الحالة"]
+            ws.append(headers)
+            
+            for i, r in enumerate(table_rows, 1):
+                ws.append([i, r["رقم الهوية"], r["اسم الطالب"], r["درجة الإتقان / 100"], r["النسبة المئوية"], r["الفئة / الحالة"]])
                 
-                title_style = ParagraphStyle("Title", parent=styles["Heading1"], alignment=1, fontSize=14)
-                elements.append(Paragraph(f"<b>متوسطة الثغر النموذجية الأهلية - كشف رصد مفرغ</b>", title_style))
-                elements.append(Paragraph(f"<b>الصف: {grade} | الفصل: ({class_num}) | {term} | {week}</b>", title_style))
-                elements.append(Spacer(1, 15))
-                
-                table_data = [["م", "رقم الهوية", "اسم الطالب", "درجة الإتقان / 100", "ملاحظات"]]
-                for i, item in enumerate(updated_data, 1):
-                    table_data.append([str(i), item["student_id"], item["name"], "0", ""])
-                    
-                t = Table(table_data, colWidths=[30, 90, 200, 100, 100])
-                t.setStyle(TableStyle([
-                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e3c72')),
-                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                    ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                    ('GRID', (0,0), (-1,-1), 1, colors.black),
-                    ('FONTSIZE', (0,0), (-1,-1), 10),
-                ]))
-                elements.append(t)
-                doc.build(elements)
-                pdf_io.seek(0)
-                
-                st.download_button(
-                    label="📝 طباعة كشف مفرغ للرصد اليدوي (PDF)",
-                    data=pdf_io,
-                    file_name=f"كشف_مفرغ_{grade}_{class_num}.pdf",
-                    mime="application/pdf"
-                )
-            else:
-                st.warning("تصدير PDF يتطلب تثبيت مكتبة `reportlab` في `requirements.txt`")
+            excel_io = io.BytesIO()
+            wb.save(excel_io)
+            excel_io.seek(0)
+            
+            st.download_button(
+                label="📊 تصدير كشف الدرجات (Excel)",
+                data=excel_io,
+                file_name=f"كشف_درجات_{grade}_{class_num}_{week}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
 # ==============================================================================
 # الصفحة الثانية: إدارة المدرسة وتقارير أولياء الأمور (ADMIN & PARENT REPORTS)
 # ==============================================================================
 elif page == "🏫 إدارة المدرسة وتقارير أولياء الأمور":
-    st.subheader("🏫 إدارة المدرسة وإرسال تقارير أولياء الأمور")
+    st.subheader("🏫 إدارة المدرسة وإرسال وتقارير أولياء الأمور")
     
     col_w1, col_w2 = st.columns(2)
     with col_w1:
@@ -571,7 +638,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
             "grade": r["grade"],
             "class": r["class"],
             "phone": r["phone"],
-            "score": sc,
+            "score": sc if (sc is not None and is_abs == 0) else 0.0,
             "is_absent": is_abs,
             "message": msg
         }
@@ -612,13 +679,291 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
             for item in cat_list:
                 with st.expander(f"👤 {item['name']} ({item['grade']} - فصل {item['class']}) | جوال ولي الأمر: {item['phone']}"):
                     st.write(f"**رقم الهوية:** {item['id']}")
-                    st.write(f"**النسبة المئوية / الدرجة:** {item['score'] if not item['is_absent'] else 'غائب (0%)'}")
+                    st.write(f"**النسبة المئوية / الدرجة:** {item['score']}%" if item['is_absent'] == 0 else "**الحالة:** غائب ⚪")
                     st.info(f"💬 **نص الرسالة الموجهة:**\n{item['message']}")
 
     with tab1: show_category_tab(cat_red, "فئة أقل من 50%")
     with tab2: show_category_tab(cat_blue, "فئة 50% - 75%")
     with tab3: show_category_tab(cat_green, "فئة 76% - 100%")
     with tab4: show_category_tab(cat_gray, "فئة الغياب")
+
+    st.markdown("---")
+    
+    # ==============================================================================
+    # خيارات طباعة وتصدير التقارير في صفحة الإدارة (جديد وحصري)
+    # ==============================================================================
+    st.markdown("### 🖨️ قسم طباعة وتصدير التقارير الرسمية لأولياء الأمور والإدارة:")
+    
+    print_type = st.radio("اختر نوع التقرير المراد طباعته وتصديره:", [
+        "👤 طباعة تقرير طالب محدد",
+        "🏫 طباعة تقرير صف بالكامل (جميع الفصول)",
+        "🎒 طباعة تقرير فصل / شعبة محددة"
+    ])
+    
+    if print_type == "👤 طباعة تقرير طالب محدد":
+        st.markdown("#### 👤 طباعة وتصدير تقرير فردي لطالب:")
+        selected_student_name = st.selectbox("اختر اسم الطالب:", df_reports["name"].tolist())
+        st_info = df_reports[df_reports["name"] == selected_student_name].iloc[0]
+        
+        sc = st_info["score"]
+        is_abs = st_info["is_absent"]
+        msg = generate_parent_message(st_info["name"], sc, is_abs)
+        
+        if is_abs == 1:
+            badge_class = "badge-gray"
+            badge_text = "غائب ⚪"
+            score_display = "0% (غائب)"
+        elif sc is None or sc < 50:
+            badge_class = "badge-red"
+            badge_text = "أقل من 50% (يحتاج متابعة) 🔴"
+            score_display = f"{sc}%"
+        elif sc <= 75:
+            badge_class = "badge-blue"
+            badge_text = "50% - 75% (مستوى متوسط) 🔵"
+            score_display = f"{sc}%"
+        else:
+            badge_class = "badge-green"
+            badge_text = "76% - 100% (ممتاز ومتفوق) 🟢"
+            score_display = f"{sc}%"
+
+        student_report_html = f"""
+        <table class="header-table">
+            <tr>
+                <td style="text-align: right; width: 35%;">
+                    <b>المملكة العربية السعودية</b><br>
+                    <b>وزارة التعليم</b><br>
+                    <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
+                    <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
+                </td>
+                <td style="text-align: center; width: 30%;">
+                    <h3 style="margin: 0; color: #1e3c72;">تقرير ولي الأمر لدرجات الإتقان</h3>
+                    <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
+                </td>
+                <td style="text-align: left; width: 35%;">
+                    <b>التاريخ:</b> 1447/1448 هـ<br>
+                    <b>رقم السجل:</b> {st_info['id']}
+                </td>
+            </tr>
+        </table>
+
+        <div style="background: #fdfdfd; border: 1px solid #1e3c72; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 8px;"><b>اسم الطالب:</b> {st_info['name']}</td>
+                    <td style="padding: 8px;"><b>رقم الهوية:</b> {st_info['id']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px;"><b>الصف الدراسي:</b> {st_info['grade']}</td>
+                    <td style="padding: 8px;"><b>الفصل / الشعبة:</b> ({st_info['class']})</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px;"><b>نسبة الإتقان الأسبوعية:</b> {score_display}</td>
+                    <td style="padding: 8px;"><b>مستوى الطالب:</b> <span class="{badge_class}">{badge_text}</span></td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="background: #eef2f5; border-right: 5px solid #1e3c72; padding: 15px; border-radius: 4px; margin-bottom: 25px;">
+            <h4 style="margin-top: 0; color: #1e3c72;">💬 الرسالة الموجهة لولي الأمر:</h4>
+            <p style="font-size: 15px; line-height: 1.6; margin: 0;">{msg}</p>
+        </div>
+
+        <table class="signatures">
+            <tr>
+                <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
+                <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
+                <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
+            </tr>
+        </table>
+        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
+            تصميم وتطوير: <b>محمد سامي السعيد</b>
+        </div>
+        """
+        
+        render_printable_html_view(student_report_html, title=f"تقرير_{st_info['name']}")
+
+    elif print_type == "🏫 طباعة تقرير صف بالكامل (جميع الفصول)":
+        st.markdown("#### 🏫 طباعة وتصدير تقرير صف دراسي كامل:")
+        selected_grade_print = st.selectbox("اختر الصف الدراسي:", ["الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"])
+        
+        df_grade = df_reports[df_reports["grade"] == selected_grade_print]
+        
+        grade_rows_html = ""
+        for idx, r in df_grade.iterrows():
+            sc = r["score"]
+            is_abs = r["is_absent"]
+            if is_abs == 1:
+                b_class = "badge-gray"
+                b_text = "غائب ⚪"
+                sc_str = "0% (غائب)"
+            elif sc is None or sc < 50:
+                b_class = "badge-red"
+                b_text = "أقل من 50% 🔴"
+                sc_str = f"{sc}%"
+            elif sc <= 75:
+                b_class = "badge-blue"
+                b_text = "50% - 75% 🔵"
+                sc_str = f"{sc}%"
+            else:
+                b_class = "badge-green"
+                b_text = "76% - 100% 🟢"
+                sc_str = f"{sc}%"
+                
+            msg_short = generate_parent_message(r["name"], sc, is_abs)
+            
+            grade_rows_html += f"""
+            <tr>
+                <td>{r['id']}</td>
+                <td style="text-align: right; padding-right: 10px;"><b>{r['name']}</b></td>
+                <td>فصل ({r['class']})</td>
+                <td><b>{sc_str}</b></td>
+                <td><span class="{b_class}">{b_text}</span></td>
+                <td style="text-align: right; font-size: 12px; padding: 6px;">{msg_short}</td>
+            </tr>
+            """
+
+        grade_report_html = f"""
+        <table class="header-table">
+            <tr>
+                <td style="text-align: right; width: 35%;">
+                    <b>المملكة العربية السعودية</b><br>
+                    <b>وزارة التعليم</b><br>
+                    <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
+                    <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
+                </td>
+                <td style="text-align: center; width: 30%;">
+                    <h3 style="margin: 0; color: #1e3c72;">تقرير الإتقان لصف {selected_grade_print} كاملاً</h3>
+                    <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
+                </td>
+                <td style="text-align: left; width: 35%;">
+                    <b>الصف الدراسي:</b> {selected_grade_print}<br>
+                    <b>إجمالي الطلاب:</b> {len(df_grade)} طالب
+                </td>
+            </tr>
+        </table>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">رقم الهوية</th>
+                    <th style="width: 25%;">اسم الطالب</th>
+                    <th style="width: 10%;">الفصل</th>
+                    <th style="width: 10%;">النسبة %</th>
+                    <th style="width: 15%;">الحالة</th>
+                    <th style="width: 25%;">نص الرسالة الموجهة لولي الأمر</th>
+                </tr>
+            </thead>
+            <tbody>
+                {grade_rows_html}
+            </tbody>
+        </table>
+
+        <table class="signatures">
+            <tr>
+                <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
+                <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
+                <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
+            </tr>
+        </table>
+        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
+            تصميم وتطوير: <b>محمد سامي السعيد</b>
+        </div>
+        """
+        
+        render_printable_html_view(grade_report_html, title=f"تقرير_{selected_grade_print}")
+
+    elif print_type == "🎒 طباعة تقرير فصل / شعبة محددة":
+        st.markdown("#### 🎒 طباعة وتصدير تقرير شعبة / فصل محدد:")
+        col_g, col_c = st.columns(2)
+        with col_g:
+            gr_select = st.selectbox("اختر الصف الدراسي:", ["الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"], key="gr_sec")
+        with col_c:
+            cl_select = st.selectbox("اختر الفصل / الشعبة:", [1, 2, 3], key="cl_sec")
+            
+        df_class = df_reports[(df_reports["grade"] == gr_select) & (df_reports["class"] == cl_select)]
+        
+        class_rows_html = ""
+        for idx, r in df_class.iterrows():
+            sc = r["score"]
+            is_abs = r["is_absent"]
+            if is_abs == 1:
+                b_class = "badge-gray"
+                b_text = "غائب ⚪"
+                sc_str = "0% (غائب)"
+            elif sc is None or sc < 50:
+                b_class = "badge-red"
+                b_text = "أقل من 50% 🔴"
+                sc_str = f"{sc}%"
+            elif sc <= 75:
+                b_class = "badge-blue"
+                b_text = "50% - 75% 🔵"
+                sc_str = f"{sc}%"
+            else:
+                b_class = "badge-green"
+                b_text = "76% - 100% 🟢"
+                sc_str = f"{sc}%"
+                
+            msg_short = generate_parent_message(r["name"], sc, is_abs)
+            
+            class_rows_html += f"""
+            <tr>
+                <td>{r['id']}</td>
+                <td style="text-align: right; padding-right: 10px;"><b>{r['name']}</b></td>
+                <td><b>{sc_str}</b></td>
+                <td><span class="{b_class}">{b_text}</span></td>
+                <td style="text-align: right; font-size: 12px; padding: 6px;">{msg_short}</td>
+            </tr>
+            """
+
+        class_report_html = f"""
+        <table class="header-table">
+            <tr>
+                <td style="text-align: right; width: 35%;">
+                    <b>المملكة العربية السعودية</b><br>
+                    <b>وزارة التعليم</b><br>
+                    <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
+                    <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
+                </td>
+                <td style="text-align: center; width: 30%;">
+                    <h3 style="margin: 0; color: #1e3c72;">تقرير شعبة {gr_select} - فصل ({cl_select})</h3>
+                    <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
+                </td>
+                <td style="text-align: left; width: 35%;">
+                    <b>الصف الدراسي:</b> {gr_select}<br>
+                    <b>الشعبة / الفصل:</b> ({cl_select})<br>
+                    <b>عدد الطلاب:</b> {len(df_class)} طالب
+                </td>
+            </tr>
+        </table>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">رقم الهوية</th>
+                    <th style="width: 27%;">اسم الطالب</th>
+                    <th style="width: 12%;">النسبة %</th>
+                    <th style="width: 15%;">الحالة</th>
+                    <th style="width: 28%;">نص الرسالة الموجهة لولي الأمر</th>
+                </tr>
+            </thead>
+            <tbody>
+                {class_rows_html}
+            </tbody>
+        </table>
+
+        <table class="signatures">
+            <tr>
+                <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
+                <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
+                <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
+            </tr>
+        </table>
+        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
+            تصميم وتطوير: <b>محمد سامي السعيد</b>
+        </div>
+        """
+        
+        render_printable_html_view(class_report_html, title=f"تقرير_{gr_select}_فصل_{cl_select}")
 
     st.markdown("---")
     st.markdown("### 📞 إدارة ورصد أرقام جوالات أولياء الأمور (تحديث وحفظ):")
