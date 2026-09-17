@@ -226,7 +226,6 @@ def init_db():
             FOREIGN KEY (student_id) REFERENCES students(id)
         )
     ''')
-    
     c.execute("SELECT COUNT(*) FROM students")
     count = c.fetchone()[0]
     if count == 0:
@@ -254,11 +253,10 @@ def create_whatsapp_url(phone, text):
 def generate_parent_message(student_name, score, is_absent):
     if is_absent:
         return (
-            f"المكرم ولي أمر الطالب/ {student_name}، نود التنبيه على غياب الطالب هذا اليوم، "
+            f"المكرم ولي أمر الطالب/ {student_name}، نود التنبيه على غياب الطالب هذا الأسبوع، "
             f"ونحثكم على متابعة الانتظام وحضور الاختبارات لتجنب حسم الدرجات والتأثير على مستواه التحصيلي: متوسطة الثغر النموذجية الأهلية."
         )
     
-    # تعريف نص نسبة الإتقان ليكون متاحاً لجميع الحالات
     sc_str = f"{score}%" if score is not None else "أقل من 50%"
 
     if score is None or score < 50:
@@ -269,7 +267,7 @@ def generate_parent_message(student_name, score, is_absent):
         )
     elif score <= 75:
         return (
-            f"المكرم ولي أمر الطالب/ {student_name}، نفيدكم بأن نسبة إتقان الطالب هذا الاسبوع هي ({sc_str}). "
+            f"المكرم ولي أمر الطالب/ {student_name}، نفيدكم بأن نسبة إتقان الطالب هذا الأسبوع هي ({sc_str}). "
             f"نود إحاطتكم علماً بأن المستوى التحصيلي لابنكم جيد ومستقر بشكل عام، ولكنه يمتلك قدرات أعلى تؤهله لتحقيق درجات أفضل. "
             f"نأمل منكم التركيز معه في الفترة القادمة لرفع كفاءته الدراسية. شاكرين لكم تعاونكم الدائم. مع تحياتنا متوسطة الثغر النموذجية الأهلية."
         )
@@ -279,66 +277,86 @@ def generate_parent_message(student_name, score, is_absent):
             f"يسعدنا إبلاغكم بأن ابنكم قدم أداءً تحصيلياً متميزاً وسلوكاً رائعاً داخل الفصل، وحصل على درجات ممتازة في التقييمات الأخيرة. "
             f"نشكر لكم حسن المتابعة والاهتمام، ونرجو الاستمرار في هذا الدعم المتبادل للحفاظ على هذا المستوى المتفوق. مع تحياتنا متوسطة الثغر النموذجية الأهلية."
         )
-# دالة توليد صفحة طباعة HTML تفاعلية للطباعة المباشرة من المتصفح
+
 def render_printable_html_view(html_content, title="طباعة التقرير"):
-    full_html = f'''
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-        <meta charset="utf-8">
-        <title>{title}</title>
-        <style>
-    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
-    html, body, [class*="css"], .stMarkdown, .stText, div[data-baseweb="input"], div[data-baseweb="select"], .stNumberInput input {
-        font-family: 'Tajawal', sans-serif !important;
-        direction: rtl !important;
-        text-align: right !important;
-    }
-    .stApp {
-        background-color: #f8fafc;
-    }
-    .header-box {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        color: white;
-        padding: 22px;
-        border-radius: 14px;
-        text-align: center !important;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 18px rgba(0,0,0,0.12);
-    }
-    /* محاذاة أسماء الطلاب ناحية اليمين بوضوح */
-    .student-name-box {
-        text-align: right !important;
-        direction: rtl !important;
-        font-weight: 700;
-        font-size: 16px;
-        color: #1e3c72;
-        padding: 6px 10px;
-        background-color: #ffffff;
-        border-right: 4px solid #2a5298;
-        border-radius: 6px;
-        margin-bottom: 8px;
-    }
-    .stDataFrame table, .stDataFrame td, .stDataFrame th {
-        text-align: right !important;
-        direction: rtl !important;
-    }
-    div[data-testid="stForm"] {
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
-        padding: 20px;
-        background-color: #ffffff;
-    }
+    full_html = f'''<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8">
+<title>{title}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+html, body {{
+    font-family: 'Tajawal', sans-serif !important;
+    direction: rtl !important;
+    text-align: right !important;
+    background-color: #f8fafc;
+    margin: 0;
+    padding: 15px;
+}}
+.print-container {{
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    max-width: 900px;
+    margin: 0 auto;
+}}
+.print-btn {{
+    background-color: #1e3c72;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 20px;
+    width: 100%;
+}}
+.header-table {{
+    width: 100%;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #1e3c72;
+    padding-bottom: 15px;
+}}
+.data-table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 25px;
+}}
+.data-table th, .data-table td {{
+    border: 1px solid #cbd5e1;
+    padding: 10px;
+    text-align: center;
+}}
+.data-table th {{
+    background-color: #1e3c72;
+    color: white;
+}}
+.signatures {{
+    width: 100%;
+    margin-top: 30px;
+    text-align: center;
+}}
+.badge-green {{ background-color: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
+.badge-blue {{ background-color: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
+.badge-red {{ background-color: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
+.badge-gray {{ background-color: #f3f4f6; color: #374151; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
+@media print {{
+    .no-print {{ display: none !important; }}
+    body {{ background: white; padding: 0; }}
+    .print-container {{ box-shadow: none; padding: 0; }}
+}}
 </style>
-    </head>
-    <body>
-        <div class="print-container">
-            <button class="print-btn no-print" onclick="window.print()">🖨️ اضغط هنا للطباعة المباشرة / التصدير كـ PDF</button>
-            {html_content}
-        </div>
-    </body>
-    </html>
-    '''
+</head>
+<body>
+<div class="print-container">
+    <button class="print-btn no-print" onclick="window.print()">🖨️ اضغط هنا للطباعة المباشرة / التصدير كـ PDF</button>
+    {html_content}
+</div>
+</body>
+</html>'''
     components.html(full_html, height=650, scrolling=True)
 
 # ==============================================================================
@@ -353,32 +371,53 @@ st.set_page_config(
 
 st.markdown('''
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
-    html, body, [class*="css"] {
-        font-family: 'Tajawal', sans-serif;
-        direction: rtl;
-        text-align: right;
-    }
-    .stApp {
-        background-color: #f4f6f9;
-    }
-    .header-box {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 12px;
-        text-align: center;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+html, body, [class*="css"], .stMarkdown, .stText, div[data-baseweb="input"], div[data-baseweb="select"], .stNumberInput input {
+    font-family: 'Tajawal', sans-serif !important;
+    direction: rtl !important;
+    text-align: right !important;
+}
+.stApp {
+    background-color: #f8fafc;
+}
+.header-box {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: white;
+    padding: 22px;
+    border-radius: 14px;
+    text-align: center !important;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+}
+.student-name-box {
+    text-align: right !important;
+    direction: rtl !important;
+    font-weight: 700;
+    font-size: 16px;
+    color: #1e3c72;
+    padding: 6px 10px;
+    background-color: #ffffff;
+    border-right: 4px solid #2a5298;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+.stDataFrame table, .stDataFrame td, .stDataFrame th {
+    text-align: right !important;
+    direction: rtl !important;
+}
+div[data-testid="stForm"] {
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 20px;
+    background-color: #ffffff;
+}
 </style>
 ''', unsafe_allow_html=True)
 
 st.markdown('''
 <div class="header-box">
-    <h2>🏫 المملكة العربية السعودية - وزارة التعليم</h2>
-    <h3>الإدارة العامة للتعليم بمنطقة الرياض | متوسطة الثغر النموذجية الأهلية (بنين)</h3>
-    <h4>برنامج رصد درجات الإتقان وإدارة تقارير أولياء الأمور</h4>
+    <h2 style="margin:0;">🏫 نظام رصد الدرجات والتواصل مع أولياء الأمور</h2>
+    <p style="margin:5px 0 0 0; font-size:16px;">متوسطة الثغر النموذجية الأهلية (بنين) بالرياض</p>
 </div>
 ''', unsafe_allow_html=True)
 
@@ -403,7 +442,7 @@ if page == "📝 صفحة الرصد":
         week = st.selectbox("الأسبوع المستهدف:", weeks)
 
     st.markdown("---")
-    
+
     conn = get_db_connection()
     query = """
         SELECT s.id, s.name, s.grade, s.class, g.score, g.is_absent 
@@ -429,14 +468,12 @@ if page == "📝 صفحة الرصد":
                 with col_name:
                     st.markdown(f'<div class="student-name-box">📌 {idx+1}. {row["name"]} <span style="font-size: 12px; color: #64748b; font-weight: normal;">({row["id"]})</span></div>', unsafe_allow_html=True)
                 with col_score:
-                    # القيمة الافتراضية عند أول رصد تكون صفر
                     curr_score = float(row["score"]) if (pd.notnull(row["score"]) and row["score"] is not None) else 0.0
                     sc = st.number_input(f"الدرجة (100)", min_value=0.0, max_value=100.0, value=curr_score, step=1.0, key=f"sc_{row['id']}")
                 with col_absent:
                     curr_abs = bool(row["is_absent"]) if pd.notnull(row["is_absent"]) else False
                     is_abs = st.checkbox("غائب ⚪", value=curr_abs, key=f"abs_{row['id']}")
                 
-                # عند اختيار غائب تُصفّر درجة الطالب وتصبح 0
                 final_score = 0.0 if is_abs else sc
                 updated_data.append({
                     "student_id": row["id"],
@@ -501,7 +538,6 @@ if page == "📝 صفحة الرصد":
         with tab_exp1:
             st.markdown("#### 📝 معاينة وطباعة كشف رصد مفرغ للرصد اليدوي:")
             
-            # بناء كشف رصد مفرغ للطباعة
             rows_html = ""
             for i, st_item in enumerate(updated_data, 1):
                 rows_html += f"""
@@ -604,7 +640,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         selected_term = st.selectbox("اختر الفصل الدراسي:", ["الفصل الدراسي الأول", "الفصل الدراسي الثاني"])
         
     st.markdown("---")
-    
+
     conn = get_db_connection()
     query = """
         SELECT s.id, s.name, s.grade, s.class, s.phone, g.score, g.is_absent
@@ -616,7 +652,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
     conn.close()
 
     cat_red, cat_blue, cat_green, cat_gray = [], [], [], []
-    
+
     for idx, r in df_reports.iterrows():
         sc = r["score"]
         is_abs = r["is_absent"]
@@ -649,7 +685,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
     m4.metric("⚪ فئة الغياب", f"{len(cat_gray)} طالب")
 
     st.markdown("---")
-    
+
     st.markdown("##### 🟢 خيارات إرسال الرسائل عبر الواتساب (WhatsApp):")
     col_wa1, col_wa2 = st.columns(2)
     with col_wa1:
@@ -657,17 +693,15 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
     with col_wa2:
         st.info("💡 اضغط على زر **'إرسال الرسالة الآن عبر الواتساب'** الأخضر أمام كل طالب لفتح محادثة الواتساب فوراً مع الرسالة المجهزة.")
 
-
-
     st.markdown("### 📋 تفاصيل الرسائل النصية الموجهة حسب الفئات:")
-    
+
     tab1, tab2, tab3, tab4 = st.tabs([
         f"🔴 أقل من 50% ({len(cat_red)})",
         f"🔵 50% - 75% ({len(cat_blue)})",
         f"🟢 76% - 100% ({len(cat_green)})",
         f"⚪ الغياب ({len(cat_gray)})"
     ])
-    
+
     def show_category_tab(cat_list, cat_name):
         if not cat_list:
             st.info(f"لا يوجد طلاب في {cat_name} بهذا الأسبوع.")
@@ -678,8 +712,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
                 with st.expander(f"👤 {item['name']} ({item['grade']} - فصل {item['class']}) | جوال ولي الأمر: {item['phone']}"):
                     st.write(f"**رقم الهوية:** {item['id']}")
                     st.write(f"**النسبة المئوية / الدرجة:** {item['score']}%" if item['is_absent'] == 0 else "**الحالة:** غائب ⚪")
-                    st.info(f"""💬 **نص الرسالة الموجهة:**
-{item['message']}""")
+                    st.info(f"💬 **نص الرسالة الموجهة:**\n\n{item['message']}")
                     st.markdown(f'''
                     <a href="{wa_link}" target="_blank" style="text-decoration:none;">
                         <div style="background-color:#25D366; color:white; padding:12px 18px; border-radius:8px; text-align:center; font-weight:bold; font-size:15px; margin-top:8px; display:block;">
@@ -694,36 +727,10 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
     with tab4: show_category_tab(cat_gray, "فئة الغياب")
 
     st.markdown("---")
-    
-    # ==============================================================================
-    # خيارات طباعة وتصدير التقارير في صفحة الإدارة (جديد وحصري)
-    # ==============================================================================
-    elif page == "🏫 إدارة المدرسة وتقارير أولياء الأمور":
-    st.subheader("🏫 إدارة المدرسة وإرسال وتقارير أولياء الأمور")
-    
-    col_w1, col_w2 = st.columns(2)
-    with col_w1:
-        weeks = [f"الأسبوع {i}" for i in range(1, 19)]
-        selected_week = st.selectbox("اختر الأسبوع لعرض التقرير والرسائل:", weeks)
-    with col_w2:
-        selected_term = st.selectbox("اختر الفصل الدراسي:", ["الفصل الدراسي الأول", "الفصل الدراسي الثاني"])
-        
-    st.markdown("---")
-
-    conn = get_db_connection()
-    query = """
-        SELECT s.id, s.name, s.grade, s.class, s.phone, g.score, g.is_absent
-        FROM students s
-        LEFT JOIN grades g ON s.id = g.student_id AND g.term = ? AND g.week = ?
-        ORDER BY s.grade, s.class, s.name
-    """
-    df_reports = pd.read_sql_query(query, conn, params=(selected_term, selected_week))
-    conn.close()
 
     # ==============================================================================
-    # قسم طباعة وتصدير التقارير (محاذاة بـ 4 مسافات)
+    # قسم طباعة وتصدير التقارير الرسمية لأولياء الأمور والإدارة
     # ==============================================================================
-    st.markdown("---")
     st.markdown("### 🖨️ قسم طباعة وتصدير التقارير الرسمية لأولياء الأمور والإدارة:")
 
     print_type = st.radio("اختر نوع التقرير المراد طباعته وتصديره:", [
@@ -735,14 +742,14 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
     if print_type == "👤 طباعة تقرير طالب محدد":
         st.markdown("#### 👤 طباعة وتصدير تقرير فردي لطالب:")
         selected_student_name = st.selectbox("اختر اسم الطالب:", df_reports["name"].tolist())
-        st_info = df_reports[df_reports["name"] == selected_student_name].iloc
+        st_info = df_reports[df_reports["name"] == selected_student_name].iloc[0]
 
-        # 1. حساب قيمة msg وتوليد النص أولاً لتفادي NameError
+        # 1. احتساب الدرجة وحالة الغياب وتوليد نص الرسالة أولاً لتجنب NameError
         sc = st_info["score"]
         is_abs = st_info["is_absent"]
         msg = generate_parent_message(st_info["name"], sc, is_abs)
 
-        # 2. إنشاء رابط الواتساب بعد تعريف msg
+        # 2. توليد رابط الواتساب بعد التأكد من وجود المتغير msg
         wa_indiv_url = create_whatsapp_url(st_info['phone'], msg)
         st.markdown(f'''
         <a href="{wa_indiv_url}" target="_blank" style="text-decoration:none;">
@@ -824,15 +831,199 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         """
         
         render_printable_html_view(student_report_html, title=f"تقرير_{st_info['name']}")
+
+    elif print_type == "🏫 طباعة تقرير صف بالكامل (جميع الفصول)":
+        st.markdown("#### 🏫 طباعة وتصدير تقرير صف دراسي كامل:")
+        selected_grade_print = st.selectbox("اختر الصف الدراسي:", ["الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"])
+        
+        df_grade = df_reports[df_reports["grade"] == selected_grade_print]
+        
+        grade_rows_html = ""
+        for idx, r in df_grade.iterrows():
+            sc = r["score"]
+            is_abs = r["is_absent"]
+            if is_abs == 1:
+                b_class = "badge-gray"
+                b_text = "غائب ⚪"
+                sc_str = "0% (غائب)"
+            elif sc is None or sc < 50:
+                b_class = "badge-red"
+                b_text = "أقل من 50% 🔴"
+                sc_str = f"{sc}%"
+            elif sc <= 75:
+                b_class = "badge-blue"
+                b_text = "50% - 75% 🔵"
+                sc_str = f"{sc}%"
+            else:
+                b_class = "badge-green"
+                b_text = "76% - 100% 🟢"
+                sc_str = f"{sc}%"
+                
+            msg_short = generate_parent_message(r["name"], sc, is_abs)
+            
+            grade_rows_html += f"""
+            <tr>
+                <td>{r['id']}</td>
+                <td style="text-align: right; padding-right: 10px;"><b>{r['name']}</b></td>
+                <td>فصل ({r['class']})</td>
+                <td><b>{sc_str}</b></td>
+                <td><span class="{b_class}">{b_text}</span></td>
+                <td style="text-align: right; font-size: 12px; padding: 6px;">{msg_short}</td>
+            </tr>
+            """
+
+        grade_report_html = f"""
+        <table class="header-table">
+            <tr>
+                <td style="text-align: right; width: 35%;">
+                    <b>المملكة العربية السعودية</b><br>
+                    <b>وزارة التعليم</b><br>
+                    <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
+                    <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
+                </td>
+                <td style="text-align: center; width: 30%;">
+                    <h3 style="margin: 0; color: #1e3c72;">تقرير الإتقان لصف {selected_grade_print} كاملاً</h3>
+                    <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
+                </td>
+                <td style="text-align: left; width: 35%;">
+                    <b>الصف الدراسي:</b> {selected_grade_print}<br>
+                    <b>إجمالي الطلاب:</b> {len(df_grade)} طالب
+                </td>
+            </tr>
+        </table>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">رقم الهوية</th>
+                    <th style="width: 25%;">اسم الطالب</th>
+                    <th style="width: 10%;">الفصل</th>
+                    <th style="width: 10%;">النسبة %</th>
+                    <th style="width: 15%;">الحالة</th>
+                    <th style="width: 25%;">نص الرسالة الموجهة لولي الأمر</th>
+                </tr>
+            </thead>
+            <tbody>
+                {grade_rows_html}
+            </tbody>
+        </table>
+
+        <table class="signatures">
+            <tr>
+                <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
+                <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
+                <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
+            </tr>
+        </table>
+        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
+            تصميم وتطوير: <b>محمد سامي السعيد</b>
+        </div>
+        """
+        
+        render_printable_html_view(grade_report_html, title=f"تقرير_{selected_grade_print}")
+
+    elif print_type == "🎒 طباعة تقرير فصل / شعبة محددة":
+        st.markdown("#### 🎒 طباعة وتصدير تقرير شعبة / فصل محدد:")
+        col_g, col_c = st.columns(2)
+        with col_g:
+            gr_select = st.selectbox("اختر الصف الدراسي:", ["الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"], key="gr_sec")
+        with col_c:
+            cl_select = st.selectbox("اختر الفصل / الشعبة:", [1, 2, 3], key="cl_sec")
+            
+        df_class = df_reports[(df_reports["grade"] == gr_select) & (df_reports["class"] == cl_select)]
+        
+        class_rows_html = ""
+        for idx, r in df_class.iterrows():
+            sc = r["score"]
+            is_abs = r["is_absent"]
+            if is_abs == 1:
+                b_class = "badge-gray"
+                b_text = "غائب ⚪"
+                sc_str = "0% (غائب)"
+            elif sc is None or sc < 50:
+                b_class = "badge-red"
+                b_text = "أقل من 50% 🔴"
+                sc_str = f"{sc}%"
+            elif sc <= 75:
+                b_class = "badge-blue"
+                b_text = "50% - 75% 🔵"
+                sc_str = f"{sc}%"
+            else:
+                b_class = "badge-green"
+                b_text = "76% - 100% 🟢"
+                sc_str = f"{sc}%"
+                
+            msg_short = generate_parent_message(r["name"], sc, is_abs)
+            
+            class_rows_html += f"""
+            <tr>
+                <td>{r['id']}</td>
+                <td style="text-align: right; padding-right: 10px;"><b>{r['name']}</b></td>
+                <td><b>{sc_str}</b></td>
+                <td><span class="{b_class}">{b_text}</span></td>
+                <td style="text-align: right; font-size: 12px; padding: 6px;">{msg_short}</td>
+            </tr>
+            """
+
+        class_report_html = f"""
+        <table class="header-table">
+            <tr>
+                <td style="text-align: right; width: 35%;">
+                    <b>المملكة العربية السعودية</b><br>
+                    <b>وزارة التعليم</b><br>
+                    <b>الإدارة العامة للتعليم بمنطقة الرياض</b><br>
+                    <b>متوسطة الثغر النموذجية الأهلية (بنين)</b>
+                </td>
+                <td style="text-align: center; width: 30%;">
+                    <h3 style="margin: 0; color: #1e3c72;">تقرير شعبة {gr_select} - فصل ({cl_select})</h3>
+                    <p style="margin: 5px 0;">{selected_term} - {selected_week}</p>
+                </td>
+                <td style="text-align: left; width: 35%;">
+                    <b>الصف الدراسي:</b> {gr_select}<br>
+                    <b>الشعبة / الفصل:</b> ({cl_select})<br>
+                    <b>عدد الطلاب:</b> {len(df_class)} طالب
+                </td>
+            </tr>
+        </table>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">رقم الهوية</th>
+                    <th style="width: 27%;">اسم الطالب</th>
+                    <th style="width: 12%;">النسبة %</th>
+                    <th style="width: 15%;">الحالة</th>
+                    <th style="width: 28%;">نص الرسالة الموجهة لولي الأمر</th>
+                </tr>
+            </thead>
+            <tbody>
+                {class_rows_html}
+            </tbody>
+        </table>
+
+        <table class="signatures">
+            <tr>
+                <td>وكيل الشؤون التعليمية<br><br><b>محمد مبروك السيد</b></td>
+                <td>وكيل شؤون الطلاب<br><br><b>صالح بن عبدالله الدعجاني</b></td>
+                <td>مدير المدرسة<br><br><b>إبراهيم بن موسى التميمي</b></td>
+            </tr>
+        </table>
+        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #777;">
+            تصميم وتطوير: <b>محمد سامي السعيد</b>
+        </div>
+        """
+        
+        render_printable_html_view(class_report_html, title=f"تقرير_{gr_select}_فصل_{cl_select}")
+
     st.markdown("---")
     st.markdown("### 📞 إدارة ورصد أرقام جوالات أولياء الأمور (تحديث وحفظ):")
-    
+
     col_p1, col_p2 = st.columns(2)
     with col_p1:
         st_select = st.selectbox("اختر الطالب لتحديث رقم جوال ولي أمره:", df_reports["name"].tolist())
-    
+
     selected_st_row = df_reports[df_reports["name"] == st_select].iloc[0]
-    
+
     with col_p2:
         new_phone = st.text_input("رقم الجوال الجديد:", value=selected_st_row["phone"])
         if st.button("💾 تحديث رقم الجوال"):
@@ -846,7 +1037,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
 
     st.markdown("---")
     st.markdown("### 🖨️ الاعتماد الرسمي وتوقيعات إدارة المدرسة:")
-    
+
     st.markdown('''
     <div style="background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center;">
         <table style="width: 100%; text-align: center; border-collapse: collapse;">
