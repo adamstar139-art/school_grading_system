@@ -1,21 +1,33 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
 import io
 
+# محاولة استيراد المكتبات الاختيارية لحمايتها عند الاستضافة على المنصات
+try:
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    HAS_OPENPYXL = True
+except ImportError:
+    HAS_OPENPYXL = False
+
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    HAS_REPORTLAB = True
+except ImportError:
+    HAS_REPORTLAB = False
+
 # ==============================================================================
-# 1. DATABASE INITIALIZATION & PRE-SEEDED DATA
+# 1. تهيئة قاعدة البيانات والبيانات المعتمدة للطلاب
 # ==============================================================================
 DB_NAME = "school_grading_system.db"
 
+# قائمة طلاب متوسطة الثغر النموذجية الأهلية المسجلين بالصفوف والفصول
 STUDENTS_INIT = [
-    # Grade 1 - Class 1
+    # الصف الأول المتوسط - فصل 1
     {"id": "1167628468", "name": "ابراهيم بن محمد بن علي الوهيبي", "grade": "الأول المتوسط", "class": 1, "phone": "966504158122"},
     {"id": "2395664317", "name": "بلال عبدالرزاق عيسى العيسى", "grade": "الأول المتوسط", "class": 1, "phone": "966507448712"},
     {"id": "1170582165", "name": "حسام بن محمد بن علي ال رايان البارقي", "grade": "الأول المتوسط", "class": 1, "phone": "966504445699"},
@@ -36,7 +48,7 @@ STUDENTS_INIT = [
     {"id": "1169174164", "name": "محمد نايف فراج الدعجاني", "grade": "الأول المتوسط", "class": 1, "phone": "966554444782"},
     {"id": "2380890976", "name": "وائل بولعيش", "grade": "الأول المتوسط", "class": 1, "phone": "966591534495"},
 
-    # Grade 1 - Class 2
+    # الصف الأول المتوسط - فصل 2
     {"id": "1170348286", "name": "الوليد ابن خالد بن فهد العتيبي", "grade": "الأول المتوسط", "class": 2, "phone": "966558522229"},
     {"id": "1172433185", "name": "باسل محمد فرج الدوسري", "grade": "الأول المتوسط", "class": 2, "phone": "966537589781"},
     {"id": "1173391556", "name": "بسام بن عبدالكريم بن عبدالله الحرقان الدوسري", "grade": "الأول المتوسط", "class": 2, "phone": "966534467820"},
@@ -60,7 +72,7 @@ STUDENTS_INIT = [
     {"id": "1170884165", "name": "يزن محمد علي اليحيا", "grade": "الأول المتوسط", "class": 2, "phone": "966557072133"},
     {"id": "1170548737", "name": "يوسف محمد عبدالله الدوسري", "grade": "الأول المتوسط", "class": 2, "phone": "966556666176"},
 
-    # Grade 2 - Class 1
+    # الصف الثاني المتوسط - فصل 1
     {"id": "1163760935", "name": "احمد سامي بن احمد العمران", "grade": "الثاني المتوسط", "class": 1, "phone": "966551501503"},
     {"id": "1153756612", "name": "الوليد عبدالله بن ابراهيم المبدل", "grade": "الثاني المتوسط", "class": 1, "phone": "966505241627"},
     {"id": "1164269209", "name": "ذياب بن محمد بن ذياب بن محمد ال مربط القحطاني", "grade": "الثاني المتوسط", "class": 1, "phone": "966561169999"},
@@ -83,7 +95,7 @@ STUDENTS_INIT = [
     {"id": "1171868639", "name": "وائل بن عبدالله بن عامر علي ال عبيد الغامدي", "grade": "الثاني المتوسط", "class": 1, "phone": "966548888663"},
     {"id": "1163191222", "name": "يزيد بن طارق بن علي الحديثي", "grade": "الثاني المتوسط", "class": 1, "phone": "966554084040"},
 
-    # Grade 2 - Class 2
+    # الصف الثاني المتوسط - فصل 2
     {"id": "1166753291", "name": "ابراهيم بن مبارك بن راشد بن عبدالرحمن السبعان آل موينع", "grade": "الثاني المتوسط", "class": 2, "phone": "966555212896"},
     {"id": "1163613795", "name": "ابراهيم ياسر ابراهيم الحلوي", "grade": "الثاني المتوسط", "class": 2, "phone": "966502220990"},
     {"id": "1167148251", "name": "حامد بن محمد بن حامد شباط", "grade": "الثاني المتوسط", "class": 2, "phone": "966595001616"},
@@ -108,7 +120,7 @@ STUDENTS_INIT = [
     {"id": "1164387977", "name": "هادي سلطان هادي القحطاني", "grade": "الثاني المتوسط", "class": 2, "phone": "966505936192"},
     {"id": "1165002153", "name": "يزيد بن حسين بن متعب بن محمد كعكم", "grade": "الثاني المتوسط", "class": 2, "phone": "966550117805"},
 
-    # Grade 2 - Class 3
+    # الصف الثاني المتوسط - فصل 3
     {"id": "1166911709", "name": "ثامر عمر ابراهيم عثمان", "grade": "الثاني المتوسط", "class": 3, "phone": "966538384444"},
     {"id": "008464815", "name": "جهاد فارس عبدالقادر حناوي", "grade": "الثاني المتوسط", "class": 3, "phone": "966562674178"},
     {"id": "1164830562", "name": "خالد محمد عبدالكريم الخفاجي", "grade": "الثاني المتوسط", "class": 3, "phone": "966533074601"},
@@ -129,8 +141,8 @@ STUDENTS_INIT = [
     {"id": "1166629798", "name": "يزيد بن حمد بن مترك بن محمد ال مسعود القحطاني", "grade": "الثاني المتوسط", "class": 3, "phone": "966505203795"},
     {"id": "1167371093", "name": "يوسف عايد عواد البلوي", "grade": "الثاني المتوسط", "class": 3, "phone": "966531066289"},
 
-    # Grade 3 - Class 1
-    {"id": "1158966166", "name": "أصيل ناصر بن محمد مذكور", "grade": "الثالث المتوسط", "class": 1, "phone": "966552149044"},
+    # الصف الثالث المتوسط - فصل 1
+    {"id": "1158966166", "name": "أاصيل ناصر بن محمد مذكور", "grade": "الثالث المتوسط", "class": 1, "phone": "966552149044"},
     {"id": "1162308223", "name": "خالد محمد مسدف معافا", "grade": "الثالث المتوسط", "class": 1, "phone": "966552680201"},
     {"id": "1161109093", "name": "راكان بن عبدالله بن سالم اليافعي", "grade": "الثالث المتوسط", "class": 1, "phone": "966504234219"},
     {"id": "1160805899", "name": "زياد احمد بن علي اللحيد", "grade": "الثالث المتوسط", "class": 1, "phone": "966504432362"},
@@ -153,7 +165,7 @@ STUDENTS_INIT = [
     {"id": "1159404795", "name": "نواف وليد حمد الشعالان", "grade": "الثالث المتوسط", "class": 1, "phone": "966555798074"},
     {"id": "1168385894", "name": "يوسف نايف مقعد العتيبي", "grade": "الثالث المتوسط", "class": 1, "phone": "966505290037"},
 
-    # Grade 3 - Class 2
+    # الصف الثالث المتوسط - فصل 2
     {"id": "1156933093", "name": "تركي عبدالعزيز عبدالله المرزوق", "grade": "الثالث المتوسط", "class": 2, "phone": "966501100076"},
     {"id": "1160223317", "name": "تركي عثمان عبدالعزيز العثمان", "grade": "الثالث المتوسط", "class": 2, "phone": "966505226153"},
     {"id": "1159683497", "name": "راشد احمد فهد ال سعيد", "grade": "الثالث المتوسط", "class": 2, "phone": "966555992829"},
@@ -176,7 +188,7 @@ STUDENTS_INIT = [
     {"id": "1161363443", "name": "نواف سعد بن علي القاسم", "grade": "الثالث المتوسط", "class": 2, "phone": "966504200199"},
     {"id": "1162274086", "name": "ياسر تركي اسماعيل مسملي", "grade": "الثالث المتوسط", "class": 2, "phone": "966504261855"},
 
-    # Grade 3 - Class 3
+    # الصف الثالث المتوسط - فصل 3
     {"id": "1163525544", "name": "ثامر وليد بن عبدالعزيز الطليحي", "grade": "الثالث المتوسط", "class": 3, "phone": "966504437710"},
     {"id": "1160712996", "name": "خالد بن عبدالرؤوف بن عبدالله الشنيبر", "grade": "الثالث المتوسط", "class": 3, "phone": "966504173163"},
     {"id": "1162560054", "name": "خالد عبدالله خالد الخالدي", "grade": "الثالث المتوسط", "class": 3, "phone": "966558890881"},
@@ -229,7 +241,6 @@ def init_db():
         )
     ''')
     
-    # Check if students exist
     c.execute("SELECT COUNT(*) FROM students")
     count = c.fetchone()[0]
     if count == 0:
@@ -242,31 +253,21 @@ def init_db():
 init_db()
 
 # ==============================================================================
-# 2. HELPER FUNCTIONS
+# 2. الدوال المساعدة وصياغة الرسائل
 # ==============================================================================
 def generate_parent_message(student_name, score, is_absent):
     if is_absent:
         return f"المكرم ولي أمر الطالب/ {student_name}، نود التنبيه على غياب الطالب هذا الأسبوع، ونحثكم على متابعة انتظام وحضور الاختبارات لتجنب حسم الدرجات والتأثير على مستواه الأكاديمي."
     elif score is None or score < 50:
-        sc_str = f"{score}%" if score is not None else "أقل من 50%"
+        sc_str = f"{score}%" if score is not None else "0%"
         return f"المكرم ولي أمر الطالب/ {student_name}، نفيدكم بأن نسبة إتقان الطالب هذا الأسبوع هي ({sc_str}) وهي أقل من 50%. نأمل منكم المتابعة والعمل على رفع مستواه الدراسي."
     elif score <= 75:
         return f"المكرم ولي أمر الطالب/ {student_name}، نشيد بجهود الطالب ونسبة إتقانه ({score}%)، ونحثه على بذل المزيد من الجهد للوصول إلى مستوى أفضل والتميز."
     else:
         return f"المكرم ولي أمر الطالب/ {student_name}، نتقدم بخالص الشكر والتقدير لكم وللطالب على الاهتمام والتفوق بنسبة إتقان ممتازة ({score}%)، مع أطيب دعواتنا له بالتوفيق والاستمرارية."
 
-def get_row_color(score, is_absent):
-    if is_absent:
-        return "background-color: #e2e3e5; color: #383d41;" # Gray
-    elif score is None or score < 50:
-        return "background-color: #f8d7da; color: #721c24;" # Light Red
-    elif score <= 75:
-        return "background-color: #cce5ff; color: #004085;" # Light Blue
-    else:
-        return "background-color: #d4edda; color: #155724;" # Light Green
-
 # ==============================================================================
-# 3. STREAMLIT CONFIG & STYLING
+# 3. واجهة برنامج Streamlit وتحديد التنسيق العربي RTL
 # ==============================================================================
 st.set_page_config(
     page_title="برنامج رصد الدرجات - متوسطة الثغر النموذجية الأهلية",
@@ -295,18 +296,13 @@ st.markdown('''
         margin-bottom: 25px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
-    .stat-card {
-        background-color: white;
-        padding: 15px;
-        border-radius: 10px;
-        border-right: 5px solid #2a5298;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        text-align: center;
-    }
 </style>
 ''', unsafe_allow_html=True)
 
-# Header Banner
+if not HAS_REPORTLAB or not HAS_OPENPYXL:
+    st.info("💡 تنبيه الاستضافة: لتفعيل كافة ميزات تصدير ملفات Excel و PDF على المنصة، يرجى التأكد من إضافة ملف `requirements.txt` في مجلد مشروعك الأساسي.")
+
+# الهيدر الرئيسي للمدرسة
 st.markdown('''
 <div class="header-box">
     <h2>🏫 المملكة العربية السعودية - وزارة التعليم</h2>
@@ -315,12 +311,12 @@ st.markdown('''
 </div>
 ''', unsafe_allow_html=True)
 
-# Sidebar Navigation
+# شريط التنقل الجانبي
 st.sidebar.title("📌 القائمة الرئيسية")
 page = st.sidebar.radio("اختر الصفحة:", ["📝 صفحة الرصد", "🏫 إدارة المدرسة وتقارير أولياء الأمور"])
 
 # ==============================================================================
-# PAGE 1: صفحة الرصد (RECORDING SHEET)
+# الصفحة الأولى: صفحة الرصد (RECORDING SHEET)
 # ==============================================================================
 if page == "📝 صفحة الرصد":
     st.subheader("📝 صفحة رصد درجات الإتقان الأسبوعية")
@@ -338,10 +334,7 @@ if page == "📝 صفحة الرصد":
 
     st.markdown("---")
     
-    # Fetch students & existing grades
     conn = get_db_connection()
-    c = conn.cursor()
-    
     query = """
         SELECT s.id, s.name, s.grade, s.class, g.score, g.is_absent 
         FROM students s
@@ -357,29 +350,69 @@ if page == "📝 صفحة الرصد":
     else:
         st.info(f"📊 عدد الطلاب في {grade} - فصل ({class_num}): **{len(df_students)} طالب** | {term} - {week}")
         
-        # Interactive Form / Data Editor
         with st.form("recording_form"):
-            st.markdown("##### 📥 أدخل/عدّل درجات الطلاب وحالة الغياب:")
+            st.markdown("##### 📥 جدول رصد الدرجات والنسب المئوية للطلاب:")
+            st.caption("ملاحظة: تظهر الدرجة الافتراضية (0) أمام كل طالب، وعند اختيار 'غائب' تصفر البيانات وتلغى الدرجة.")
+            
+            # عناوين الأعمدة في الجدول
+            hdr1, hdr2, hdr3, hdr4 = st.columns([3.5, 2, 2, 1.5])
+            hdr1.markdown("**اسم الطالب**")
+            hdr2.markdown("**درجة الإتقان (100)**")
+            hdr3.markdown("**النسبة المئوية (%)**")
+            hdr4.markdown("**خيار غائب**")
+            st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
             
             updated_data = []
             for idx, row in df_students.iterrows():
-                col_name, col_score, col_absent = st.columns([3, 2, 1])
+                # logic for default score: 0 unless previously recorded in DB
+                is_db_abs = bool(row["is_absent"]) if pd.notnull(row["is_absent"]) else False
+                if is_db_abs:
+                    curr_score = 0.0
+                    curr_abs = True
+                else:
+                    curr_score = float(row["score"]) if (pd.notnull(row["score"]) and row["score"] is not None) else 0.0
+                    curr_abs = False
+
+                col_name, col_score, col_pct, col_absent = st.columns([3.5, 2, 2, 1.5])
+                
                 with col_name:
-                    st.write(f"**{idx+1}. {row['name']}** (`{row['id']}`)")
+                    st.write(f"**{idx+1}. {row['name']}**")
                 with col_score:
-                    curr_score = float(row["score"]) if pd.notnull(row["score"]) else 100.0
-                    sc = st.number_input(f"الدرجة (100)", min_value=0.0, max_value=100.0, value=curr_score, step=1.0, key=f"sc_{row['id']}")
+                    sc = st.number_input(
+                        label=f"sc_lbl_{row['id']}",
+                        min_value=0.0,
+                        max_value=100.0,
+                        value=curr_score,
+                        step=1.0,
+                        key=f"sc_{row['id']}",
+                        label_visibility="collapsed"
+                    )
                 with col_absent:
-                    curr_abs = bool(row["is_absent"]) if pd.notnull(row["is_absent"]) else False
                     is_abs = st.checkbox("غائب ⚪", value=curr_abs, key=f"abs_{row['id']}")
                 
+                # Zero out data if absent is selected
+                if is_abs:
+                    final_score = 0.0
+                    pct_str = "0%"
+                else:
+                    final_score = sc
+                    pct_str = f"{final_score:.0f}%" if final_score.is_integer() else f"{final_score}%"
+
+                with col_pct:
+                    if is_abs:
+                        st.markdown("<span style='color: #777; font-weight: bold;'>0% (غائب)</span>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"**{pct_str}**")
+
                 updated_data.append({
                     "student_id": row["id"],
                     "name": row["name"],
-                    "score": sc if not is_abs else None,
-                    "is_absent": 1 if is_abs else 0
+                    "score": final_score,
+                    "is_absent": 1 if is_abs else 0,
+                    "pct_display": pct_str
                 })
             
+            st.markdown("<br>", unsafe_allow_html=True)
             save_btn = st.form_submit_button("💾 حفظ البيانات والتحديث")
             
         if save_btn:
@@ -398,30 +431,31 @@ if page == "📝 صفحة الرصد":
             st.success("✅ تم حفظ البيانات في قاعدة البيانات بنجاح!")
             st.rerun()
 
-        # Display Color Coded Results Table
         st.markdown("### 📊 جدول نتائج الرصد المنسق بالتلوين الشرطي:")
         
         table_rows = []
         for item in updated_data:
             sc = item["score"]
             is_abs = item["is_absent"]
+            
             if is_abs:
-                cat = "غائب ⚪"
+                cat = "غائب ⚪ (0%)"
                 pct = "0%"
-            elif sc < 50:
-                cat = "أقل من 50% (ضعيف) 🔴"
-                pct = f"{sc}%"
-            elif sc <= 75:
-                cat = "50% - 75% (متوسط) 🔵"
-                pct = f"{sc}%"
+                sc_disp = 0
             else:
-                cat = "76% - 100% (ممتاز) 🟢"
-                pct = f"{sc}%"
+                pct = item["pct_display"]
+                sc_disp = sc
+                if sc < 50:
+                    cat = "أقل من 50% (ضعيف) 🔴"
+                elif sc <= 75:
+                    cat = "50% - 75% (متوسط) 🔵"
+                else:
+                    cat = "76% - 100% (ممتاز) 🟢"
                 
             table_rows.append({
                 "اسم الطالب": item["name"],
                 "رقم الهوية": item["student_id"],
-                "درجة الإتقان / 100": sc if not is_abs else "غائب",
+                "درجة الإتقان / 100": sc_disp,
                 "النسبة المئوية": pct,
                 "الفئة / الحالة": cat
             })
@@ -432,74 +466,80 @@ if page == "📝 صفحة الرصد":
         st.markdown("---")
         st.markdown("### 📥 تصدير وطباعة كشوف الدرجات:")
         
-        col_exp1, col_exp2, col_exp3 = st.columns(3)
+        col_exp1, col_exp2 = st.columns(2)
         
-        # Excel Export
+        # تصدير ملف Excel
         with col_exp1:
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "كشف_الرصد"
-            ws.views.sheetView[0].rightToLeft = True
-            
-            headers = ["م", "رقم الهوية", "اسم الطالب", "الدرجة / 100", "النسبة المئوية", "الحالة"]
-            ws.append(headers)
-            
-            for i, r in enumerate(table_rows, 1):
-                ws.append([i, r["رقم الهوية"], r["اسم الطالب"], r["درجة الإتقان / 100"], r["النسبة المئوية"], r["الفئة / الحالة"]])
+            if HAS_OPENPYXL:
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                ws.title = "كشف_الرصد"
+                ws.sheet_view.rightToLeft = True
                 
-            excel_io = io.BytesIO()
-            wb.save(excel_io)
-            excel_io.seek(0)
-            
-            st.download_button(
-                label="📊 تصدير كشف الدرجات (Excel)",
-                data=excel_io,
-                file_name=f"كشف_درجات_{grade}_{class_num}_{week}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+                headers = ["م", "رقم الهوية", "اسم الطالب", "درجة الإتقان / 100", "النسبة المئوية", "الحالة"]
+                ws.append(headers)
+                
+                for i, r in enumerate(table_rows, 1):
+                    ws.append([i, r["رقم الهوية"], r["اسم الطالب"], r["درجة الإتقان / 100"], r["النسبة المئوية"], r["الفئة / الحالة"]])
+                    
+                excel_io = io.BytesIO()
+                wb.save(excel_io)
+                excel_io.seek(0)
+                
+                st.download_button(
+                    label="📊 تصدير كشف الدرجات (Excel)",
+                    data=excel_io,
+                    file_name=f"كشف_درجات_{grade}_{class_num}_{week}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.warning("تصدير Excel يتطلب تثبيت مكتبة `openpyxl` في `requirements.txt`")
 
-        # PDF Blank Recording Sheet
-        with col_exp3:
-            pdf_io = io.BytesIO()
-            doc = SimpleDocTemplate(pdf_io, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
-            elements = []
-            styles = getSampleStyleSheet()
-            
-            title_style = ParagraphStyle("Title", parent=styles["Heading1"], alignment=1, fontSize=14)
-            elements.append(Paragraph(f"<b>متوسطة الثغر النموذجية الأهلية - كشف رصد مفرغ</b>", title_style))
-            elements.append(Paragraph(f"<b>الصف: {grade} | الفصل: ({class_num}) | {term} | {week}</b>", title_style))
-            elements.append(Spacer(1, 15))
-            
-            table_data = [["م", "رقم الهوية", "اسم الطالب", "درجة الإتقان / 100", "ملاحظات"]]
-            for i, item in enumerate(updated_data, 1):
-                table_data.append([str(i), item["student_id"], item["name"], "", ""])
+        # تصدير كشف مفرغ PDF
+        with col_exp2:
+            if HAS_REPORTLAB:
+                pdf_io = io.BytesIO()
+                doc = SimpleDocTemplate(pdf_io, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+                elements = []
+                styles = getSampleStyleSheet()
                 
-            t = Table(table_data, colWidths=[30, 100, 220, 100, 80])
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e3c72')),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                ('GRID', (0,0), (-1,-1), 1, colors.black),
-                ('FONTSIZE', (0,0), (-1,-1), 10),
-            ]))
-            elements.append(t)
-            doc.build(elements)
-            pdf_io.seek(0)
-            
-            st.download_button(
-                label="📝 طباعة كشف مفرغ (PDF)",
-                data=pdf_io,
-                file_name=f"كشف_مفرغ_{grade}_{class_num}.pdf",
-                mime="application/pdf"
-            )
+                title_style = ParagraphStyle("Title", parent=styles["Heading1"], alignment=1, fontSize=14)
+                elements.append(Paragraph(f"<b>متوسطة الثغر النموذجية الأهلية - كشف رصد مفرغ</b>", title_style))
+                elements.append(Paragraph(f"<b>الصف: {grade} | الفصل: ({class_num}) | {term} | {week}</b>", title_style))
+                elements.append(Spacer(1, 15))
+                
+                table_data = [["م", "رقم الهوية", "اسم الطالب", "درجة الإتقان / 100", "ملاحظات"]]
+                for i, item in enumerate(updated_data, 1):
+                    table_data.append([str(i), item["student_id"], item["name"], "0", ""])
+                    
+                t = Table(table_data, colWidths=[30, 90, 200, 100, 100])
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e3c72')),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                    ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                    ('GRID', (0,0), (-1,-1), 1, colors.black),
+                    ('FONTSIZE', (0,0), (-1,-1), 10),
+                ]))
+                elements.append(t)
+                doc.build(elements)
+                pdf_io.seek(0)
+                
+                st.download_button(
+                    label="📝 طباعة كشف مفرغ للرصد اليدوي (PDF)",
+                    data=pdf_io,
+                    file_name=f"كشف_مفرغ_{grade}_{class_num}.pdf",
+                    mime="application/pdf"
+                )
+            else:
+                st.warning("تصدير PDF يتطلب تثبيت مكتبة `reportlab` في `requirements.txt`")
 
 # ==============================================================================
-# PAGE 2: إدارة المدرسة وتقارير أولياء الأمور (ADMIN & PARENT SMS REPORTS)
+# الصفحة الثانية: إدارة المدرسة وتقارير أولياء الأمور (ADMIN & PARENT REPORTS)
 # ==============================================================================
 elif page == "🏫 إدارة المدرسة وتقارير أولياء الأمور":
     st.subheader("🏫 إدارة المدرسة وإرسال تقارير أولياء الأمور")
     
-    col_w1, col_w2 = st.columns([2, 2])
+    col_w1, col_w2 = st.columns(2)
     with col_w1:
         weeks = [f"الأسبوع {i}" for i in range(1, 19)]
         selected_week = st.selectbox("اختر الأسبوع لعرض التقرير والرسائل:", weeks)
@@ -518,7 +558,6 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
     df_reports = pd.read_sql_query(query, conn, params=(selected_term, selected_week))
     conn.close()
 
-    # Categorize SMS messages
     cat_red, cat_blue, cat_green, cat_gray = [], [], [], []
     
     for idx, r in df_reports.iterrows():
@@ -546,7 +585,6 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
         else:
             cat_green.append(row_dict)
 
-    # Overview Metrics
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("🔴 فئة أقل من 50%", f"{len(cat_red)} طالب")
     m2.metric("🔵 فئة 50% - 75%", f"{len(cat_blue)} طالب")
@@ -555,11 +593,10 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
 
     st.markdown("---")
     
-    # Bulk SMS Simulation Button
     if st.button("📲 إرسال الرسائل النصية الجماعية لجميع الأولياء الأمور (مرة واحدة)"):
         st.success(f"🚀 تم إرسال الرسائل النصية بنجاح إلى {len(df_reports)} ولي أمر مقسمين على الفئات الأربع!")
 
-    st.markdown("### 📋 تفاصيل الرسائل والفئات الاربع:")
+    st.markdown("### 📋 تفاصيل الرسائل النصية الموجهة حسب الفئات:")
     
     tab1, tab2, tab3, tab4 = st.tabs([
         f"🔴 أقل من 50% ({len(cat_red)})",
@@ -575,7 +612,7 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
             for item in cat_list:
                 with st.expander(f"👤 {item['name']} ({item['grade']} - فصل {item['class']}) | جوال ولي الأمر: {item['phone']}"):
                     st.write(f"**رقم الهوية:** {item['id']}")
-                    st.write(f"**النسبة المئوية / الدرجة:** {item['score'] if not item['is_absent'] else 'غائب'}")
+                    st.write(f"**النسبة المئوية / الدرجة:** {item['score'] if not item['is_absent'] else 'غائب (0%)'}")
                     st.info(f"💬 **نص الرسالة الموجهة:**\n{item['message']}")
 
     with tab1: show_category_tab(cat_red, "فئة أقل من 50%")
@@ -584,11 +621,9 @@ elif page == "🏫 إدارة المدرسة وتقارير أولياء الأ�
     with tab4: show_category_tab(cat_gray, "فئة الغياب")
 
     st.markdown("---")
+    st.markdown("### 📞 إدارة ورصد أرقام جوالات أولياء الأمور (تحديث وحفظ):")
     
-    # Phone Numbers Management Section
-    st.markdown("### 📞 إدارة ورصد أرقام جوالات أولياء الأمور (إضافة / تحديث / حذف):")
-    
-    col_p1, col_p2 = st.columns([2, 1])
+    col_p1, col_p2 = st.columns(2)
     with col_p1:
         st_select = st.selectbox("اختر الطالب لتحديث رقم جوال ولي أمره:", df_reports["name"].tolist())
     
